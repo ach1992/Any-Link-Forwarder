@@ -15,12 +15,33 @@ function install {
   chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
+  if [ ! -f marzforwarder-renew.service ] || [ ! -f marzforwarder-renew.timer ]; then
+    echo "❌ Missing marzforwarder-renew.service or marzforwarder-renew.timer"
+    exit 1
+  fi
   cp marzforwarder-renew.service /etc/systemd/system/
   cp marzforwarder-renew.timer /etc/systemd/system/
   systemctl daemon-reload
   systemctl enable --now marzforwarder-renew.timer
 
-  echo "✅ Installation completed."
+  echo ""
+  echo "🌐 Let's configure your first forwarder:"
+  echo -n "➤ Enter your domain (e.g. mydomain.com): "
+  read DOMAIN
+  echo -n "➤ Enter your panel address (e.g. panel.domain.com): "
+  read PANEL
+  echo -n "➤ Enter your panel port (e.g. 443): "
+  read PORT
+
+  if [ -z "$DOMAIN" ] || [ -z "$PANEL" ] || [ -z "$PORT" ]; then
+    echo "❌ Invalid input. Installation aborted."
+    exit 1
+  fi
+
+  echo "🔧 Setting up forwarder for $DOMAIN → $PANEL:$PORT ..."
+  add "$DOMAIN" "$PANEL" "$PORT"
+
+  echo "✅ Installation completed with first forwarder configured."
 }
 
 function add {
@@ -33,22 +54,29 @@ function add {
     exit 1
   fi
 
-  echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT"
+  echo "➕ Adding new forwarder for $DOMAIN → $PANEL:$PORT"
 
   mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
+
+  PHP_PORT=$(shuf -i 10000-11000 -n 1)
 
   cat > "$INSTALL_DIR/instances/$DOMAIN/config.json" <<EOF
 {
   "target_domain": "$PANEL",
-  "target_port": $PORT
+  "target_port": $PORT,
+  "local_php_port": $PHP_PORT
 }
 EOF
 
   curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN"
+  if [ $? -ne 0 ]; then
+    echo "❌ SSL generation failed for $DOMAIN"
+    exit 1
+  fi
 
-  create_service "$DOMAIN"
+  create_service "$DOMAIN" "$PHP_PORT"
   systemctl enable --now marzforwarder-$DOMAIN
 
   echo "✅ Forwarder created and running."
@@ -56,6 +84,7 @@ EOF
 
 function create_service {
   DOMAIN=$1
+  PHP_PORT=$2
   SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
 
   cat > "$SERVICE_FILE" <<EOF
@@ -64,7 +93,7 @@ Description=Marzban Sub Forwarder for $DOMAIN
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/socat TCP-LISTEN:8443,reuseaddr,fork TCP:127.0.0.1:10443
+ExecStart=/usr/bin/socat TCP-LISTEN:8443,reuseaddr,fork TCP:127.0.0.1:$PHP_PORT
 Restart=always
 User=root
 
@@ -75,7 +104,7 @@ EOF
   cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
 #!/bin/bash
 cd "$INSTALL_DIR/instances/$DOMAIN"
-php -S 127.0.0.1:10443 forward.php
+php -S 127.0.0.1:$PHP_PORT forward.php
 EOF
 
   chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
@@ -97,6 +126,7 @@ function remove {
   systemctl stop marzforwarder-$DOMAIN
   systemctl disable marzforwarder-$DOMAIN
   rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
+  systemctl daemon-reload
   rm -rf "$INSTALL_DIR/instances/$DOMAIN"
   certbot delete --cert-name "$DOMAIN" --non-interactive
 
@@ -105,7 +135,7 @@ function remove {
 
 function instance-start {
   DOMAIN=$1
-  bash "$INSTALL_DIR/instances/$DOMAIN/run.sh"
+  systemctl start marzforwarder-$DOMAIN
 }
 
 function uninstall {
