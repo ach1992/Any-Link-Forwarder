@@ -21,6 +21,12 @@ $config = json_decode(file_get_contents($configPath), true);
 $targetDomain = $config['target_domain'];
 $targetPort = $config['target_port'];
 
+// Optional: validate config
+if (!$targetDomain || !$targetPort) {
+    http_response_code(500);
+    exit("Invalid config data");
+}
+
 // Rewrite request path
 $path = $_SERVER['REQUEST_URI'] ?? '';
 $proxyPath = str_replace('/sub', '', $path);
