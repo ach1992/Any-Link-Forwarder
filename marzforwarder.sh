@@ -1,7 +1,6 @@
 #!/bin/bash
 
 INSTALL_DIR="/var/www/marzban-forward"
-CONFIG_FILE="$INSTALL_DIR/config.json"
 FORWARD_PHP_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php"
 
 function install {
@@ -9,10 +8,7 @@ function install {
   apt update && apt install -y php php-curl curl socat certbot unzip
 
   echo "📁 Creating install directory..."
-  mkdir -p "$INSTALL_DIR"
-
-  echo "⬇️ Downloading forward.php..."
-  curl -sSL "$FORWARD_PHP_URL" -o "$INSTALL_DIR/forward.php"
+  mkdir -p "$INSTALL_DIR/instances"
 
   echo "🔗 Creating CLI command 'marzforwarder'..."
   chmod +x "$0"
@@ -21,168 +17,129 @@ function install {
   echo "✅ Installation complete!"
 }
 
-function configure {
-  echo "🔧 Configure Marzban destination:"
-  read -p "Enter Marzban domain (e.g. panel.domain.com): " DOMAIN
-  read -p "Enter Marzban port (default: 8443): " PORT
-  PORT=${PORT:-8443}
+function add {
+  DOMAIN=$1
+  TARGET_DOMAIN=$2
+  TARGET_PORT=$3
 
-  cat > "$CONFIG_FILE" <<EOF
+  if [ -z "$DOMAIN" ] || [ -z "$TARGET_DOMAIN" ] || [ -z "$TARGET_PORT" ]; then
+    echo "❌ Usage: marzforwarder add <yourdomain.ir> <panel.domain.com> <port>"
+    exit 1
+  fi
+
+  INST_PATH="$INSTALL_DIR/instances/$DOMAIN"
+  mkdir -p "$INST_PATH"
+
+  echo "⬇️ Downloading forward.php..."
+  curl -sSL "$FORWARD_PHP_URL" -o "$INST_PATH/forward.php"
+
+  echo "📝 Writing config.json..."
+  cat > "$INST_PATH/config.json" <<EOF
 {
-  "target_domain": "$DOMAIN",
-  "target_port": $PORT
+  "target_domain": "$TARGET_DOMAIN",
+  "target_port": $TARGET_PORT
 }
 EOF
 
-  echo "✅ Configuration saved to $CONFIG_FILE"
-}
+  echo "🔐 Issuing SSL certificate for $DOMAIN..."
+  certbot certonly --standalone --preferred-challenges http -d "$DOMAIN" \
+    --agree-tos --email "admin@$DOMAIN" --non-interactive
 
-function reconfigure {
-  echo "🌐 Forwarder domain configuration:"
-  read -p "Enter forwarder domain (e.g. update.domain.ir): " FORWARD_DOMAIN
-  read -p "Enter Marzban domain (e.g. panel.domain.com): " TARGET_DOMAIN
-  read -p "Enter Marzban port (default: 8443): " PORT
-  PORT=${PORT:-8443}
-
-  echo "🧼 Cleaning old certificate if exists..."
-  certbot delete --cert-name "$FORWARD_DOMAIN" 2>/dev/null
-
-  echo "🔐 Issuing SSL certificate for $FORWARD_DOMAIN..."
-  certbot certonly --standalone --preferred-challenges http -d "$FORWARD_DOMAIN" \
-    --agree-tos --email "admin@$FORWARD_DOMAIN" --non-interactive
-
-  if [ ! -f "/etc/letsencrypt/live/$FORWARD_DOMAIN/fullchain.pem" ]; then
+  if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
     echo "❌ SSL certificate failed. Aborting."
     exit 1
   fi
 
-  cat > "$CONFIG_FILE" <<EOF
-{
-  "target_domain": "$TARGET_DOMAIN",
-  "target_port": $PORT
-}
+  echo "⚙️ Creating systemd service marzforwarder-$DOMAIN..."
+  SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
+
+  cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=Marzban Forwarder for $DOMAIN
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/marzforwarder instance-start $DOMAIN
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=$INST_PATH
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-  echo "✅ Reconfiguration complete."
+  systemctl daemon-reload
+  systemctl enable marzforwarder-$DOMAIN
+  systemctl start marzforwarder-$DOMAIN
+
+  echo "✅ Forwarder for $DOMAIN is now active."
 }
 
-function start {
+function instance-start {
   DOMAIN=$1
-  PORT=$2
-  PORT=${PORT:-443}
+  INST_PATH="$INSTALL_DIR/instances/$DOMAIN"
+  CONFIG="$INST_PATH/config.json"
+  PHP_FILE="$INST_PATH/forward.php"
 
-  CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-  KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
-
-  if [ ! -f "$CERT_PATH" ] || [ ! -f "$KEY_PATH" ]; then
-    echo "❌ SSL certificate not found for $DOMAIN"
+  if [ ! -f "$CONFIG" ]; then
+    echo "❌ Configuration not found for $DOMAIN"
     exit 1
   fi
 
-  echo "🚀 Starting forwarder on https://$DOMAIN:$PORT"
-  php -S 127.0.0.1:8080 -t "$INSTALL_DIR" "$INSTALL_DIR/forward.php" &
+  TARGET_PORT=443
+  CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+  KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+
+  echo "🔄 Starting PHP server for $DOMAIN"
+  php -S 127.0.0.1:8${RANDOM:0:3} -t "$INST_PATH" "$PHP_FILE" &
   PHP_PID=$!
 
-  socat OPENSSL-LISTEN:$PORT,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8080 &
+  sleep 1  # wait for PHP to boot
+
+  PORT=443
+  socat OPENSSL-LISTEN:$PORT,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8${RANDOM:0:3} &
   SOCAT_PID=$!
 
   trap "kill $PHP_PID $SOCAT_PID" SIGINT SIGTERM
   wait
 }
 
-function systemd_setup {
-  DOMAIN=$1
-  PORT=$2
-  PORT=${PORT:-443}
-
-  SERVICE_FILE="/etc/systemd/system/marzforwarder.service"
-
-  echo "⚙️ Creating systemd service..."
-
-  cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=Marzban Sub Forwarder
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/marzforwarder start $DOMAIN $PORT
-Restart=always
-RestartSec=5
-User=root
-WorkingDirectory=$INSTALL_DIR
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  echo "🔁 Enabling systemd service..."
-  systemctl daemon-reexec
-  systemctl daemon-reload
-  systemctl enable marzforwarder
-  systemctl start marzforwarder
-
-  echo "✅ Forwarder is now running on port $PORT"
+function list {
+  echo "📋 Active Forwarders:"
+  for dir in $INSTALL_DIR/instances/*; do
+    [ -d "$dir" ] && basename "$dir"
+  done
 }
 
-function uninstall {
-  read -p "Are you sure you want to uninstall everything? (yes/no): " CONFIRM
-  if [ "$CONFIRM" != "yes" ]; then
-    echo "❌ Aborted."
-    exit 0
+function remove {
+  DOMAIN=$1
+  if [ -z "$DOMAIN" ]; then
+    echo "Usage: marzforwarder remove <yourdomain.ir>"
+    exit 1
   fi
 
-  echo "🗑 Removing project directory..."
-  rm -rf "$INSTALL_DIR"
+  systemctl stop marzforwarder-$DOMAIN
+  systemctl disable marzforwarder-$DOMAIN
+  rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
+  rm -rf "$INSTALL_DIR/instances/$DOMAIN"
+  certbot delete --cert-name "$DOMAIN" --non-interactive
 
-  echo "🗑 Removing CLI command 'marzforwarder'..."
-  rm -f /usr/local/bin/marzforwarder
-
-  echo "🗑 Removing systemd service..."
-  systemctl stop marzforwarder
-  systemctl disable marzforwarder
-  rm -f /etc/systemd/system/marzforwarder.service
   systemctl daemon-reload
-
-  echo "🧹 Removing certbot renewal cronjobs (if any)..."
-  crontab -l | grep -v 'certbot renew' | crontab -
-
-  echo "✅ Uninstallation complete."
+  echo "✅ Removed $DOMAIN and all associated files."
 }
 
-# Dispatcher
 case "$1" in
   install) install ;;
-  configure) configure ;;
-  reconfigure) reconfigure ;;
-  start) start "$2" "$3" ;;
-  systemd-setup) systemd_setup "$2" "$3" ;;
-  uninstall) uninstall ;;
-  "")
-    echo "🧙 Welcome to Marzban Sub Forwarder Setup Wizard"
-
-    install
-
-    echo -e "\n⚙️ Let's configure your Marzban panel..."
-    configure
-
-    echo -e "\n🌐 Now let's issue SSL and set your public forwarder domain"
-    reconfigure
-
-    read -p "Do you want to run it as a persistent service (systemd)? [Y/n]: " SYSOPT
-    SYSOPT=${SYSOPT:-Y}
-    if [[ "$SYSOPT" =~ ^[Yy]$ ]]; then
-      read -p "Enter your forwarder domain (e.g. update.domain.ir): " FD
-      read -p "Enter port to expose (default 443): " PORT
-      PORT=${PORT:-443}
-      systemd_setup "$FD" "$PORT"
-    else
-      echo -e "👉 You can later run it with: marzforwarder start yourdomain.ir [port]"
-    fi
-
-    echo -e "\n✅ All done!"
-    ;;
+  add) add "$2" "$3" "$4" ;;
+  instance-start) instance-start "$2" ;;
+  list) list ;;
+  remove) remove "$2" ;;
   *)
-    echo "Usage: marzforwarder {install|configure|reconfigure|start <domain> [port]|systemd-setup <domain> [port]|uninstall}"
-    exit 1
+    echo "Usage:"
+    echo "  marzforwarder install"
+    echo "  marzforwarder add <yourdomain.ir> <panel.domain.com> <port>"
+    echo "  marzforwarder list"
+    echo "  marzforwarder remove <yourdomain.ir>"
     ;;
 esac
