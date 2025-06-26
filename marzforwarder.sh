@@ -11,16 +11,12 @@ function install {
   mkdir -p "$INSTALL_DIR/instances"
 
   echo "🔗 Setting up CLI shortcut..."
-  if [[ -s "$0" ]]; then
-    cp "$0" "$BIN_PATH"
-    chmod +x "$BIN_PATH"
-  else
-    echo "⚠️ Current script file is empty or unreadable. Skipping CLI shortcut setup."
-  fi
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh" -o "$BIN_PATH"
+  chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  cp marzforwarder-renew.service /etc/systemd/system/ 2>/dev/null || echo "❌ Missing marzforwarder-renew.service"
-  cp marzforwarder-renew.timer /etc/systemd/system/ 2>/dev/null || echo "❌ Missing marzforwarder-renew.timer"
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service" -o /etc/systemd/system/marzforwarder-renew.service
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer" -o /etc/systemd/system/marzforwarder-renew.timer
   systemctl daemon-reload
   systemctl enable --now marzforwarder-renew.timer 2>/dev/null
 
