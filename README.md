@@ -53,6 +53,7 @@ To use this Marzban subscription forwarder, ensure your system meets the followi
 - `php` (>= 7.4)
 - `php-curl`
 - `curl`
+- `socat`
 - `certbot` (Let's Encrypt client)
 - `unzip` (optional, for file management)
 
