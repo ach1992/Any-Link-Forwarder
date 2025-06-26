@@ -1,61 +1,69 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+if (empty($_SERVER['HTTP_USER_AGENT'])) {
+    http_response_code(403);
+    exit("403 Forbidden");
+}
 
 $configPath = __DIR__ . '/config.json';
 if (!file_exists($configPath)) {
     http_response_code(500);
-    exit("❌ config.json not found.");
+    exit("Missing config.json");
 }
 
 $config = json_decode(file_get_contents($configPath), true);
 $targetDomain = $config['target_domain'] ?? '';
 $targetPort = $config['target_port'] ?? 443;
 
-if (empty($targetDomain)) {
-    http_response_code(500);
-    exit("❌ Invalid config. target_domain missing.");
-}
+$isTextHTML = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html') || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', '*/*');
 
-$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-if (!str_starts_with($requestUri, '/sub/')) {
-    http_response_code(403);
-    exit("Forbidden: Invalid path");
-}
-
-$targetUrl = "https://{$targetDomain}:{$targetPort}{$requestUri}";
+$path = $_SERVER['REQUEST_URI'] ?? '';
+$proxyPath = str_replace('/sub', '', $path);
+$url = "https://$targetDomain:$targetPort$proxyPath";
 
 $ch = curl_init();
-curl_setopt_array($ch, [
-    CURLOPT_URL => $targetUrl,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HEADER => true,
-    CURLOPT_TIMEOUT => 10,
-    CURLOPT_USERAGENT => $_SERVER['HTTP_USER_AGENT'] ?? 'forwarder',
-    CURLOPT_CUSTOMREQUEST => 'GET'
-]);
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+curl_setopt($ch, CURLOPT_HTTPHEADER, $isTextHTML ? ['Accept: text/html'] : []);
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$data = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
 if (curl_errno($ch)) {
     http_response_code(502);
-    exit("cURL Error: " . curl_error($ch));
+    exit('cURL Error: ' . curl_error($ch));
 }
 
 curl_close($ch);
 
-$headerSize = strpos($response, "\r\n\r\n");
-$headerText = substr($response, 0, $headerSize);
-$body = substr($response, $headerSize + 4);
+$headers = get_headers_from_curl_response($data);
 
-foreach (explode("\r\n", $headerText) as $line) {
-    if (stripos($line, ':') === false) continue;
-    [$key, $value] = explode(':', $line, 2);
-    $keyLower = strtolower($key);
-    if (in_array($keyLower, ['content-type', 'subscription-userinfo', 'profile-update-interval'])) {
-        header(trim($key) . ': ' . trim($value));
-    }
+if (!$isTextHTML && (empty($headers) || $code !== 200)) {
+    http_response_code($code);
+    exit('Error!');
 }
 
-echo $body;
+foreach ($headers as $key => $header) {
+    header("$key: $header");
+}
+
+function get_headers_from_curl_response(&$response): array {
+    $headers = [];
+    $header_text = substr($response, 0, strpos($response, "\r\n\r\n"));
+    foreach (explode("\r\n", $header_text) as $i => $line) {
+        if ($i === 0) continue;
+        list($key, $value) = explode(': ', $line, 2);
+        $key = strtolower($key);
+        if (in_array($key, ['content-disposition', 'content-type', 'subscription-userinfo', 'profile-update-interval'])) {
+            $headers[ucwords($key, '-')] = trim($value);
+        }
+    }
+    $response = trim(substr($response, strlen($header_text)));
+    return $headers;
+}
+
+echo $data;
