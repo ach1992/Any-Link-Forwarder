@@ -54,7 +54,6 @@ To use this Marzban subscription forwarder, ensure your system meets the followi
 - `php-curl`
 - `curl`
 - `certbot` (Let's Encrypt client)
-- `socat`
 - `unzip` (optional, for file management)
 
 ### 🌐 Networking Requirements
