@@ -10,16 +10,25 @@ bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 
 ---
 
-### 🖥 Global CLI Access
+## 🚀 CLI Commands
 
-After running `install`, you can use `marzforwarder` globally:
+After installing the script, you can manage the forwarder using the global command:
 
 ```
-marzforwarder configure                # Set Marzban target domain + port
-marzforwarder start yourdomain.com     # Start the forwarder
-marzforwarder reconfigure              # Change forwarder domain + regenerate SSL
-marzforwarder uninstall                # Remove everything
+marzforwarder
 ```
+
+### 🔧 Available Commands
+
+| Command                                   | Description                                                                 |
+|-------------------------------------------|-----------------------------------------------------------------------------|
+| `marzforwarder install`                   | Installs all required dependencies and sets up the forwarder.              |
+| `marzforwarder configure`                 | Prompts for Marzban panel domain and port, and saves them to config.       |
+| `marzforwarder reconfigure`               | Updates domain, Marzban config, and reissues the SSL certificate.          |
+| `marzforwarder start yourdomain.ir`       | Starts the forwarder manually in your terminal session.                    |
+| `marzforwarder systemd-setup yourdomain.ir` | Creates a persistent systemd service for automatic background execution.   |
+| `marzforwarder uninstall`                 | Completely removes the forwarder, SSL, config, and service.                |
+
 
 ## ⚙️ Requirements
 
