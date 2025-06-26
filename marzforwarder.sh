@@ -19,7 +19,6 @@ function install {
   ln -sf "$(realpath "$0")" /usr/local/bin/marzforwarder
 
   echo "✅ Installation complete!"
-  echo "👉 Next: run 'marzforwarder configure'"
 }
 
 function configure {
@@ -39,9 +38,8 @@ EOF
 }
 
 function reconfigure {
-  echo "🔁 Reconfigure forwarder & reissue SSL"
-
-  read -p "Enter forwarder domain (e.g. sub.domain.ir): " FORWARD_DOMAIN
+  echo "🌐 Forwarder domain configuration:"
+  read -p "Enter forwarder domain (e.g. update.domain.ir): " FORWARD_DOMAIN
   read -p "Enter Marzban domain (e.g. panel.domain.com): " TARGET_DOMAIN
   read -p "Enter Marzban port (default: 8443): " PORT
   PORT=${PORT:-8443}
@@ -66,7 +64,6 @@ function reconfigure {
 EOF
 
   echo "✅ Reconfiguration complete."
-  echo "👉 Run: marzforwarder start $FORWARD_DOMAIN"
 }
 
 function start {
@@ -85,12 +82,9 @@ function start {
   fi
 
   echo "🚀 Starting forwarder on https://$DOMAIN (port 443)"
-
-  echo "▶ Launching PHP server..."
   php -S 127.0.0.1:8080 -t "$INSTALL_DIR" "$INSTALL_DIR/forward.php" &
   PHP_PID=$!
 
-  echo "▶ Launching socat HTTPS listener..."
   socat OPENSSL-LISTEN:443,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8080 &
   SOCAT_PID=$!
 
@@ -132,7 +126,6 @@ EOF
   systemctl start marzforwarder
 
   echo "✅ Forwarder is now running as a background service."
-  echo "💡 Use 'systemctl status marzforwarder' to check status."
 }
 
 function uninstall {
@@ -168,6 +161,28 @@ case "$1" in
   start) start "$2" ;;
   systemd-setup) systemd_setup "$2" ;;
   uninstall) uninstall ;;
+  "")
+    echo "🧙 Welcome to Marzban Sub Forwarder Setup Wizard"
+
+    install
+
+    echo -e "\n⚙️ Let's configure your Marzban panel..."
+    configure
+
+    echo -e "\n🌐 Now let's issue SSL and set your public forwarder domain"
+    reconfigure
+
+    read -p "Do you want to run it as a persistent service (systemd)? [Y/n]: " SYSOPT
+    SYSOPT=${SYSOPT:-Y}
+    if [[ "$SYSOPT" =~ ^[Yy]$ ]]; then
+      read -p "Enter your forwarder domain (e.g. update.domain.ir): " FD
+      systemd_setup "$FD"
+    else
+      echo -e "👉 You can later run it with: marzforwarder start yourdomain.ir"
+    fi
+
+    echo -e "\n✅ All done!"
+    ;;
   *)
     echo "Usage: marzforwarder {install|configure|reconfigure|start <domain>|systemd-setup <domain>|uninstall}"
     exit 1
