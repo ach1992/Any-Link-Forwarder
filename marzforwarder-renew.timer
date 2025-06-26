@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily SSL renewal timer for MarzForwarder
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
