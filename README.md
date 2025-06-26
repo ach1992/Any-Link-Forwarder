@@ -18,16 +18,18 @@ After installing the script, you can manage the forwarder using the global comma
 marzforwarder
 ```
 
+
 ### 🔧 Available Commands
 
-| Command                                   | Description                                                                 |
-|-------------------------------------------|-----------------------------------------------------------------------------|
-| `marzforwarder install`                   | Installs all required dependencies and sets up the forwarder.              |
-| `marzforwarder configure`                 | Prompts for Marzban panel domain and port, and saves them to config.       |
-| `marzforwarder reconfigure`               | Updates domain, Marzban config, and reissues the SSL certificate.          |
-| `marzforwarder start yourdomain.ir port`       | Starts the forwarder manually in your terminal session.                    |
-| `marzforwarder systemd-setup yourdomain.ir port` | Creates a persistent systemd service for automatic background execution.   |
-| `marzforwarder uninstall`                 | Completely removes the forwarder, SSL, config, and service.                |
+| Command                                         | Description                                                                 |
+|------------------------------------------------|-----------------------------------------------------------------------------|
+| `marzforwarder install`                        | Installs all required dependencies and sets up the CLI and directory.       |
+| `marzforwarder add <domain> <panel> <port>`    | Creates a new forwarder instance to a Marzban panel with auto-SSL.          |
+| `marzforwarder list`                           | Lists all configured and active forwarder instances.                        |
+| `marzforwarder remove <domain>`                | Completely removes the forwarder instance, its SSL, and systemd service.    |
+| `marzforwarder instance-start <domain>`        | *(Internal)* Starts the PHP + socat server for a single instance manually.  |
+| `marzforwarder uninstall`                      | Fully uninstalls the tool, CLI, configs, services, and certs.               |
+
 
 
 ## ⚙️ Requirements
