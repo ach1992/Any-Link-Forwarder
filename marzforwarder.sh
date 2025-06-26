@@ -1,144 +1,122 @@
 #!/bin/bash
 
 INSTALL_DIR="/var/www/marzban-forward"
-FORWARD_PHP_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php"
+BIN_PATH="/usr/local/bin/marzforwarder"
 
 function install {
   echo "📦 Installing dependencies..."
-  apt update && apt install -y php php-curl curl socat certbot unzip
+  apt update && apt install -y php php-curl socat curl certbot unzip
 
-  echo "📁 Creating install directory..."
+  echo "📁 Creating base directory..."
   mkdir -p "$INSTALL_DIR/instances"
 
-  echo "🔗 Creating CLI command 'marzforwarder'..."
-  chmod +x "$0"
-  ln -sf "$(realpath "$0")" /usr/local/bin/marzforwarder
+  echo "🔗 Setting up CLI shortcut..."
+  cp "$0" "$BIN_PATH"
+  chmod +x "$BIN_PATH"
 
-  echo "✅ Installation complete!"
+  echo "📅 Setting up automatic SSL renewal..."
+  cp marzforwarder-renew.service /etc/systemd/system/
+  cp marzforwarder-renew.timer /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now marzforwarder-renew.timer
+
+  echo "✅ Installation completed."
 }
 
 function add {
   DOMAIN=$1
-  TARGET_DOMAIN=$2
-  TARGET_PORT=$3
+  PANEL=$2
+  PORT=$3
 
-  if [ -z "$DOMAIN" ] || [ -z "$TARGET_DOMAIN" ] || [ -z "$TARGET_PORT" ]; then
-    echo "❌ Usage: marzforwarder add <yourdomain.ir> <panel.domain.com> <port>"
+  if [ -z "$DOMAIN" ] || [ -z "$PANEL" ] || [ -z "$PORT" ]; then
+    echo "❌ Usage: marzforwarder add <domain> <panel> <port>"
     exit 1
   fi
 
-  INST_PATH="$INSTALL_DIR/instances/$DOMAIN"
-  mkdir -p "$INST_PATH"
+  echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT"
 
-  echo "\2b07️ Downloading forward.php..."
-  curl -sSL "$FORWARD_PHP_URL" -o "$INST_PATH/forward.php"
+  mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
 
-  echo "🗘 Writing config.json..."
-  cat > "$INST_PATH/config.json" <<EOF
+  cat > "$INSTALL_DIR/instances/$DOMAIN/config.json" <<EOF
 {
-  "target_domain": "$TARGET_DOMAIN",
-  "target_port": $TARGET_PORT
+  "target_domain": "$PANEL",
+  "target_port": $PORT
 }
 EOF
 
-  echo "🔐 Issuing SSL certificate for $DOMAIN..."
-  certbot certonly --standalone --preferred-challenges http -d "$DOMAIN" \
-    --agree-tos --email "admin@$DOMAIN" --non-interactive
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
-  if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-    echo "❌ SSL certificate failed. Aborting."
-    exit 1
-  fi
+  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN"
 
-  echo "⚙️ Creating systemd service marzforwarder-$DOMAIN..."
+  create_service "$DOMAIN"
+  systemctl enable --now marzforwarder-$DOMAIN
+
+  echo "✅ Forwarder created and running."
+}
+
+function create_service {
+  DOMAIN=$1
   SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
 
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=Marzban Forwarder for $DOMAIN
+Description=Marzban Sub Forwarder for $DOMAIN
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/marzforwarder instance-start $DOMAIN
+ExecStart=/usr/bin/socat TCP-LISTEN:8443,reuseaddr,fork TCP:127.0.0.1:10443
 Restart=always
-RestartSec=5
 User=root
-WorkingDirectory=$INST_PATH
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-  systemctl daemon-reload
-  systemctl enable marzforwarder-$DOMAIN
-  systemctl start marzforwarder-$DOMAIN
+  cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
+#!/bin/bash
+cd "$INSTALL_DIR/instances/$DOMAIN"
+php -S 127.0.0.1:10443 forward.php
+EOF
 
-  echo "✅ Forwarder for $DOMAIN is now active."
-}
-
-function instance-start {
-  DOMAIN=$1
-  INST_PATH="$INSTALL_DIR/instances/$DOMAIN"
-  CONFIG="$INST_PATH/config.json"
-  PHP_FILE="$INST_PATH/forward.php"
-
-  if [ ! -f "$CONFIG" ]; then
-    echo "❌ Configuration not found for $DOMAIN"
-    exit 1
-  fi
-
-  CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-  KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
-  PORT=443
-
-  echo "🔄 Starting PHP server for $DOMAIN"
-  php -S 127.0.0.1:8${RANDOM:0:3} -t "$INST_PATH" "$PHP_FILE" &
-  PHP_PID=$!
-
-  sleep 1
-
-  socat OPENSSL-LISTEN:$PORT,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8${RANDOM:0:3} &
-  SOCAT_PID=$!
-
-  trap "kill $PHP_PID $SOCAT_PID" SIGINT SIGTERM
-  wait
+  chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
 }
 
 function list {
-  echo "📋 Active Forwarders:"
-  for dir in $INSTALL_DIR/instances/*; do
-    [ -d "$dir" ] && basename "$dir"
-  done
+  echo "📋 Active forwarders:"
+  ls "$INSTALL_DIR/instances"
 }
 
 function remove {
   DOMAIN=$1
   if [ -z "$DOMAIN" ]; then
-    echo "Usage: marzforwarder remove <yourdomain.ir>"
+    echo "❌ Usage: marzforwarder remove <domain>"
     exit 1
   fi
 
+  echo "❌ Removing forwarder $DOMAIN..."
   systemctl stop marzforwarder-$DOMAIN
   systemctl disable marzforwarder-$DOMAIN
   rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
   rm -rf "$INSTALL_DIR/instances/$DOMAIN"
   certbot delete --cert-name "$DOMAIN" --non-interactive
 
-  systemctl daemon-reload
-  echo "✅ Removed $DOMAIN and all associated files."
+  echo "✅ Removed $DOMAIN."
+}
+
+function instance-start {
+  DOMAIN=$1
+  bash "$INSTALL_DIR/instances/$DOMAIN/run.sh"
 }
 
 function uninstall {
-  echo "🤨 Uninstalling all Marzban forwarders..."
+  echo "🧨 Uninstalling all Marzban forwarders..."
 
   for dir in "$INSTALL_DIR/instances/"*; do
     DOMAIN=$(basename "$dir")
-    echo "🛋 Removing forwarder: $DOMAIN"
-
+    echo "🧹 Removing forwarder: $DOMAIN"
     systemctl stop marzforwarder-$DOMAIN 2>/dev/null
     systemctl disable marzforwarder-$DOMAIN 2>/dev/null
     rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
-
     certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
   done
 
@@ -146,26 +124,39 @@ function uninstall {
   rm -rf "$INSTALL_DIR"
 
   echo "🗑 Removing CLI command..."
-  rm -f /usr/local/bin/marzforwarder
+  rm -f "$BIN_PATH"
 
+  rm -f /etc/systemd/system/marzforwarder-renew.service
+  rm -f /etc/systemd/system/marzforwarder-renew.timer
   systemctl daemon-reload
 
   echo "✅ Fully uninstalled!"
 }
 
+function renew-cert {
+  echo "🔁 Stopping all forwarders before renewal..."
+  for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
+    systemctl stop "$svc"
+  done
+
+  echo "🔐 Running certbot renew..."
+  certbot renew
+
+  echo "🚀 Restarting forwarders..."
+  for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
+    systemctl start "$svc"
+  done
+
+  echo "✅ SSL renewal completed."
+}
+
 case "$1" in
   install) install ;;
   add) add "$2" "$3" "$4" ;;
-  instance-start) instance-start "$2" ;;
   list) list ;;
   remove) remove "$2" ;;
+  instance-start) instance-start "$2" ;;
   uninstall) uninstall ;;
-  *)
-    echo "Usage:"
-    echo "  marzforwarder install"
-    echo "  marzforwarder add <yourdomain.ir> <panel.domain.com> <port>"
-    echo "  marzforwarder list"
-    echo "  marzforwarder remove <yourdomain.ir>"
-    echo "  marzforwarder uninstall"
-    ;;
+  renew-cert) renew-cert ;;
+  *) echo "❌ Unknown command. Use: install | add | list | remove | instance-start | uninstall | renew-cert" ;;
 esac
