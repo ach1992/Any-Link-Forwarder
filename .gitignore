@@ -1,0 +1,37 @@
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs and caches
+*.log
+*.cache
+*.bak
+*.swp
+*.swo
+
+# Development environment files
+.vscode/
+.idea/
+*.code-workspace
+
+# PHP and system-generated files
+*.pem
+*.crt
+*.key
+
+# Runtime and instance data (not needed in Git)
+instances/
+run.sh
+config.json
+
+# Auto-generated systemd files for each domain
+marzforwarder-*.service
+marzforwarder-*.timer
+
+# Downloaded or temporary files
+*.zip
+*.tar.gz
+
+# Certbot renewal outputs (in case used locally)
+__pycache__/
+acme.json
