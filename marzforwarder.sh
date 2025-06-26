@@ -5,7 +5,7 @@ BIN_PATH="/usr/local/bin/marzforwarder"
 
 function install {
   echo "📦 Installing dependencies..."
-  apt update && apt install -y php php-curl curl certbot unzip
+  apt update && apt install -y php php-curl curl certbot unzip socat
 
   echo "📁 Creating base directory..."
   mkdir -p "$INSTALL_DIR/instances"
@@ -18,7 +18,7 @@ function install {
   curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service" -o /etc/systemd/system/marzforwarder-renew.service
   curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer" -o /etc/systemd/system/marzforwarder-renew.timer
   systemctl daemon-reload
-  systemctl enable --now marzforwarder-renew.timer 2>/dev/null
+  systemctl enable --now marzforwarder-renew.timer
 
   echo "✅ Installation completed."
 }
@@ -60,7 +60,9 @@ function create_service {
   cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
 #!/bin/bash
 cd "$INSTALL_DIR/instances/$DOMAIN"
-php -S 127.0.0.1:$LOCAL_PORT forward.php
+php -S 127.0.0.1:$LOCAL_PORT forward.php &
+while ! nc -z 127.0.0.1 $LOCAL_PORT; do sleep 0.5; done
+exec socat TCP-LISTEN:443,reuseaddr,fork TCP:127.0.0.1:$LOCAL_PORT
 EOF
 
   chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
