@@ -25,8 +25,8 @@ marzforwarder
 | `marzforwarder install`                   | Installs all required dependencies and sets up the forwarder.              |
 | `marzforwarder configure`                 | Prompts for Marzban panel domain and port, and saves them to config.       |
 | `marzforwarder reconfigure`               | Updates domain, Marzban config, and reissues the SSL certificate.          |
-| `marzforwarder start yourdomain.ir` [port]       | Starts the forwarder manually in your terminal session.                    |
-| `marzforwarder systemd-setup yourdomain.ir` [port] | Creates a persistent systemd service for automatic background execution.   |
+| `marzforwarder start yourdomain.ir [port]`       | Starts the forwarder manually in your terminal session.                    |
+| `marzforwarder systemd-setup yourdomain.ir [port]` | Creates a persistent systemd service for automatic background execution.   |
 | `marzforwarder uninstall`                 | Completely removes the forwarder, SSL, config, and service.                |
 
 
