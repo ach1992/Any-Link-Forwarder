@@ -18,19 +18,17 @@ After installing the script, you can manage the forwarder using the global comma
 marzforwarder
 ```
 
-
 ### 🔧 Available Commands
 
-| Command                                         | Description                                                                 |
-|------------------------------------------------|-----------------------------------------------------------------------------|
-| `marzforwarder install`                        | Installs all required dependencies and sets up the CLI and directory.       |
-| `marzforwarder add <domain> <panel> <port>`    | Creates a new forwarder instance to a Marzban panel with auto-SSL.          |
-| `marzforwarder list`                           | Lists all configured and active forwarder instances.                        |
-| `marzforwarder remove <domain>`                | Completely removes the forwarder instance, its SSL, and systemd service.    |
-| `marzforwarder instance-start <domain>`        | *(Internal)* Starts the PHP + socat server for a single instance manually.  |
-| `marzforwarder uninstall`                      | Fully uninstalls the tool, CLI, configs, services, and certs.               |
-
-
+| Command                                             | Description                                                                 |
+|------------------------------------------------------|-----------------------------------------------------------------------------|
+| `marzforwarder install`                             | Installs all required dependencies and sets up the CLI and SSL auto-renewal |
+| `marzforwarder add <domain> <panel> <port>`         | Adds a new domain forwarder to the target Marzban panel and issues an SSL  |
+| `marzforwarder list`                                | Lists all active domain forwarders                                          |
+| `marzforwarder remove <domain>`                     | Removes the specified domain forwarder and its certificate                  |
+| `marzforwarder instance-start <domain>`             | Starts the forwarder manually in terminal for debugging                     |
+| `marzforwarder uninstall`                           | Fully removes all forwarders, SSLs, and CLI                                |
+| `marzforwarder renew-cert`                          | Stops all forwarders, renews SSL certificates, then restarts them ✅ (new)  |
 
 ## ⚙️ Requirements
 
