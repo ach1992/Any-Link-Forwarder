@@ -10,13 +10,15 @@ bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 
 ---
 
-## 📘 Usage
+### 🖥 Global CLI Access
+
+After running `install`, you can use `marzforwarder` globally:
 
 ```
-./marzforwarder.sh configure          # Set Marzban target domain + port
-./marzforwarder.sh reconfigure        # Change forwarder domain + regenerate SSL
-./marzforwarder.sh start yourdomain   # Start the forwarder
-./marzforwarder.sh uninstall          # Remove everything
+marzforwarder configure                # Set Marzban target domain + port
+marzforwarder start yourdomain.com     # Start the forwarder
+marzforwarder reconfigure              # Change forwarder domain + regenerate SSL
+marzforwarder uninstall                # Remove everything
 ```
 
 ## ⚙️ Requirements
