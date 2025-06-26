@@ -1,34 +1,30 @@
 <?php
 
-// Block requests without User-Agent
 if (empty($_SERVER['HTTP_USER_AGENT'])) {
     http_response_code(403);
-    exit("<h2>Access Denied</h2><br>You don't have permission to view this site.<br>Error code: 403 Forbidden");
+    exit("Access Denied");
 }
 
-// Load config.json from current directory
-$configPath = __DIR__ . '/config.json';
+$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+$isTextHTML = str_contains($accept, 'text/html') || str_contains($accept, '*/*');
+
+// Detect domain directory based on script path
+$instancePath = __DIR__;
+$configPath = $instancePath . '/config.json';
+
 if (!file_exists($configPath)) {
     http_response_code(500);
     exit("Config file not found");
 }
 
 $config = json_decode(file_get_contents($configPath), true);
-$targetDomain = $config['target_domain'] ?? '';
-$targetPort = $config['target_port'] ?? 443;
+$targetDomain = $config['target_domain'];
+$targetPort = $config['target_port'];
 
-if (empty($targetDomain)) {
-    http_response_code(500);
-    exit("Invalid config");
-}
-
-// Detect Accept type
-$isTextHTML = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html') || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', '*/*');
-
-// Rewrite the request path
+// Rewrite request path
 $path = $_SERVER['REQUEST_URI'] ?? '';
-$proxyPath = str_replace('/sub', '', $path);  // /sub/uuid -> /uuid
-$URL = "https://$targetDomain:$targetPort" . $proxyPath;
+$proxyPath = str_replace('/sub', '', $path);
+$URL = "https://{$targetDomain}:{$targetPort}{$proxyPath}";
 
 // Execute cURL
 $ch = curl_init();
@@ -58,7 +54,6 @@ if (!$isTextHTML && (empty($headers) || $code !== 200)) {
     exit('Error!');
 }
 
-// Send headers
 foreach ($headers as $key => $header) {
     header("$key: $header");
 }
