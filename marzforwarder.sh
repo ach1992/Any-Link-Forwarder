@@ -2,6 +2,9 @@
 
 INSTALL_DIR="/var/www/marzban-forward"
 BIN_PATH="/usr/local/bin/marzforwarder"
+RENEW_SERVICE_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service"
+RENEW_TIMER_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer"
+SCRIPT_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh"
 
 function install {
   echo "📦 Installing dependencies..."
@@ -11,16 +14,20 @@ function install {
   mkdir -p "$INSTALL_DIR/instances"
 
   echo "🔗 Setting up CLI shortcut..."
-  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh" -o "$BIN_PATH"
+  curl -sSL "$SCRIPT_URL" -o "$BIN_PATH"
   chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service" -o /etc/systemd/system/marzforwarder-renew.service
-  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer" -o /etc/systemd/system/marzforwarder-renew.timer
+  curl -sSL "$RENEW_SERVICE_URL" -o /etc/systemd/system/marzforwarder-renew.service
+  curl -sSL "$RENEW_TIMER_URL" -o /etc/systemd/system/marzforwarder-renew.timer
   systemctl daemon-reload
   systemctl enable --now marzforwarder-renew.timer
 
   echo "✅ Installation completed."
+
+  # Prompt user to add first domain
+  echo "🛠 Starting forwarder configuration..."
+  add
 }
 
 function add {
