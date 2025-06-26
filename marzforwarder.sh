@@ -98,6 +98,43 @@ function start {
   wait
 }
 
+function systemd_setup {
+  DOMAIN=$1
+  if [ -z "$DOMAIN" ]; then
+    echo "❗ Usage: marzforwarder systemd-setup yourdomain.ir"
+    exit 1
+  fi
+
+  SERVICE_FILE="/etc/systemd/system/marzforwarder.service"
+
+  echo "⚙️ Creating systemd service..."
+
+  cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=Marzban Sub Forwarder
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/marzforwarder start $DOMAIN
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=$INSTALL_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  echo "🔁 Enabling systemd service..."
+  systemctl daemon-reexec
+  systemctl daemon-reload
+  systemctl enable marzforwarder
+  systemctl start marzforwarder
+
+  echo "✅ Forwarder is now running as a background service."
+  echo "💡 Use 'systemctl status marzforwarder' to check status."
+}
+
 function uninstall {
   read -p "Are you sure you want to uninstall everything? (yes/no): " CONFIRM
   if [ "$CONFIRM" != "yes" ]; then
@@ -111,6 +148,12 @@ function uninstall {
   echo "🗑 Removing CLI command 'marzforwarder'..."
   rm -f /usr/local/bin/marzforwarder
 
+  echo "🗑 Removing systemd service..."
+  systemctl stop marzforwarder
+  systemctl disable marzforwarder
+  rm -f /etc/systemd/system/marzforwarder.service
+  systemctl daemon-reload
+
   echo "🧹 Removing certbot renewal cronjobs (if any)..."
   crontab -l | grep -v 'certbot renew' | crontab -
 
@@ -123,9 +166,10 @@ case "$1" in
   configure) configure ;;
   reconfigure) reconfigure ;;
   start) start "$2" ;;
+  systemd-setup) systemd_setup "$2" ;;
   uninstall) uninstall ;;
   *)
-    echo "Usage: marzforwarder {install|configure|reconfigure|start <domain>|uninstall}"
+    echo "Usage: marzforwarder {install|configure|reconfigure|start <domain>|systemd-setup <domain>|uninstall}"
     exit 1
     ;;
 esac
