@@ -2,6 +2,7 @@
 
 INSTALL_DIR="/var/www/marzban-forward"
 BIN_PATH="/usr/local/bin/marzforwarder"
+GITHUB_BASE_URL="https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main"
 
 function install {
   echo "📦 Installing dependencies..."
@@ -15,12 +16,14 @@ function install {
   chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  if [ ! -f marzforwarder-renew.service ] || [ ! -f marzforwarder-renew.timer ]; then
-    echo "❌ Missing marzforwarder-renew.service or marzforwarder-renew.timer"
+  curl -sSL "$GITHUB_BASE_URL/marzforwarder-renew.service" -o /etc/systemd/system/marzforwarder-renew.service
+  curl -sSL "$GITHUB_BASE_URL/marzforwarder-renew.timer" -o /etc/systemd/system/marzforwarder-renew.timer
+
+  if [ ! -f /etc/systemd/system/marzforwarder-renew.service ] || [ ! -f /etc/systemd/system/marzforwarder-renew.timer ]; then
+    echo "❌ Failed to download systemd timer files."
     exit 1
   fi
-  cp marzforwarder-renew.service /etc/systemd/system/
-  cp marzforwarder-renew.timer /etc/systemd/system/
+
   systemctl daemon-reload
   systemctl enable --now marzforwarder-renew.timer
 
@@ -68,7 +71,7 @@ function add {
 }
 EOF
 
-  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  curl -sSL "$GITHUB_BASE_URL/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN"
   if [ $? -ne 0 ]; then
