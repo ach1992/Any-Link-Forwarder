@@ -2,7 +2,6 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// Load config
 $configPath = __DIR__ . '/config.json';
 if (!file_exists($configPath)) {
     http_response_code(500);
@@ -18,17 +17,14 @@ if (empty($targetDomain)) {
     exit("❌ Invalid config. target_domain missing.");
 }
 
-// Validate request path
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 if (!str_starts_with($requestUri, '/sub/')) {
     http_response_code(403);
     exit("Forbidden: Invalid path");
 }
 
-// Build full URL
 $targetUrl = "https://{$targetDomain}:{$targetPort}{$requestUri}";
 
-// Setup curl request
 $ch = curl_init();
 curl_setopt_array($ch, [
     CURLOPT_URL => $targetUrl,
@@ -49,12 +45,10 @@ if (curl_errno($ch)) {
 
 curl_close($ch);
 
-// Separate headers from body
 $headerSize = strpos($response, "\r\n\r\n");
 $headerText = substr($response, 0, $headerSize);
 $body = substr($response, $headerSize + 4);
 
-// Parse and forward essential headers
 foreach (explode("\r\n", $headerText) as $line) {
     if (stripos($line, ':') === false) continue;
     [$key, $value] = explode(':', $line, 2);
@@ -64,5 +58,4 @@ foreach (explode("\r\n", $headerText) as $line) {
     }
 }
 
-// Output body
 echo $body;
