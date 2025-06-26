@@ -30,10 +30,10 @@ function add {
   INST_PATH="$INSTALL_DIR/instances/$DOMAIN"
   mkdir -p "$INST_PATH"
 
-  echo "⬇️ Downloading forward.php..."
+  echo "\2b07️ Downloading forward.php..."
   curl -sSL "$FORWARD_PHP_URL" -o "$INST_PATH/forward.php"
 
-  echo "📝 Writing config.json..."
+  echo "🗘 Writing config.json..."
   cat > "$INST_PATH/config.json" <<EOF
 {
   "target_domain": "$TARGET_DOMAIN",
@@ -87,17 +87,16 @@ function instance-start {
     exit 1
   fi
 
-  TARGET_PORT=443
   CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
   KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
+  PORT=443
 
   echo "🔄 Starting PHP server for $DOMAIN"
   php -S 127.0.0.1:8${RANDOM:0:3} -t "$INST_PATH" "$PHP_FILE" &
   PHP_PID=$!
 
-  sleep 1  # wait for PHP to boot
+  sleep 1
 
-  PORT=443
   socat OPENSSL-LISTEN:$PORT,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8${RANDOM:0:3} &
   SOCAT_PID=$!
 
@@ -129,17 +128,44 @@ function remove {
   echo "✅ Removed $DOMAIN and all associated files."
 }
 
+function uninstall {
+  echo "🤨 Uninstalling all Marzban forwarders..."
+
+  for dir in "$INSTALL_DIR/instances/"*; do
+    DOMAIN=$(basename "$dir")
+    echo "🛋 Removing forwarder: $DOMAIN"
+
+    systemctl stop marzforwarder-$DOMAIN 2>/dev/null
+    systemctl disable marzforwarder-$DOMAIN 2>/dev/null
+    rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
+
+    certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
+  done
+
+  echo "🗑 Removing install directory..."
+  rm -rf "$INSTALL_DIR"
+
+  echo "🗑 Removing CLI command..."
+  rm -f /usr/local/bin/marzforwarder
+
+  systemctl daemon-reload
+
+  echo "✅ Fully uninstalled!"
+}
+
 case "$1" in
   install) install ;;
   add) add "$2" "$3" "$4" ;;
   instance-start) instance-start "$2" ;;
   list) list ;;
   remove) remove "$2" ;;
+  uninstall) uninstall ;;
   *)
     echo "Usage:"
     echo "  marzforwarder install"
     echo "  marzforwarder add <yourdomain.ir> <panel.domain.com> <port>"
     echo "  marzforwarder list"
     echo "  marzforwarder remove <yourdomain.ir>"
+    echo "  marzforwarder uninstall"
     ;;
 esac
