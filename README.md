@@ -18,17 +18,17 @@ After installing the script, you can manage the forwarder using the global comma
 marzforwarder
 ```
 
-### 🔧 Available Commands
+## 🧩 CLI Command Reference
 
-| Command                                             | Description                                                                 |
-|------------------------------------------------------|-----------------------------------------------------------------------------|
-| `marzforwarder install`                             | Installs all required dependencies and sets up the CLI and SSL auto-renewal |
-| `marzforwarder add <domain> <panel> <port>`         | Adds a new domain forwarder to the target Marzban panel and issues an SSL  |
-| `marzforwarder list`                                | Lists all active domain forwarders                                          |
-| `marzforwarder remove <domain>`                     | Removes the specified domain forwarder and its certificate                  |
-| `marzforwarder instance-start <domain>`             | Starts the forwarder manually in terminal for debugging                     |
-| `marzforwarder uninstall`                           | Fully removes all forwarders, SSLs, and CLI                                |
-| `marzforwarder renew-cert`                          | Stops all forwarders, renews SSL certificates, then restarts them ✅ (new)  |
+| Command | Description |
+|---------|-------------|
+| `marzforwarder add <domain> <panel> <port>` | Adds a new forwarder. Issues SSL and sets up a systemd service for the domain. |
+| `marzforwarder list` | Lists all currently active domains (instances) managed by MarzForwarder. |
+| `marzforwarder remove <domain>` | Removes the forwarder for the specified domain, including its certificate and systemd service. |
+| `marzforwarder instance-start <domain>` | Manually restarts the PHP server for a domain (in case you want to test or debug). |
+| `marzforwarder renew-cert` | Stops all forwarders, renews all SSL certificates via Certbot, and restarts them. |
+| `marzforwarder uninstall` | Completely removes all domains, certificates, the CLI command, and auto-renew systemd services. |
+| `marzforwarder install` | 📌 *(Used only during initial setup)* Installs dependencies, sets up auto-renew, and prompts you to add your first domain. |
 
 ## ⚙️ Requirements
 
