@@ -11,81 +11,71 @@ function install {
   mkdir -p "$INSTALL_DIR/instances"
 
   echo "🔗 Setting up CLI shortcut..."
-  cp "$0" "$BIN_PATH"
-  chmod +x "$BIN_PATH"
+  if [[ -s "$0" ]]; then
+    cp "$0" "$BIN_PATH"
+    chmod +x "$BIN_PATH"
+  else
+    echo "⚠️ Current script file is empty or unreadable. Skipping CLI shortcut setup."
+  fi
 
   echo "📅 Setting up automatic SSL renewal..."
-  if [[ -f marzforwarder-renew.service && -f marzforwarder-renew.timer ]]; then
-    cp marzforwarder-renew.service /etc/systemd/system/
-    cp marzforwarder-renew.timer /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable --now marzforwarder-renew.timer
-  else
-    echo "❌ Missing marzforwarder-renew.service or marzforwarder-renew.timer"
-  fi
+  cp marzforwarder-renew.service /etc/systemd/system/ 2>/dev/null || echo "❌ Missing marzforwarder-renew.service"
+  cp marzforwarder-renew.timer /etc/systemd/system/ 2>/dev/null || echo "❌ Missing marzforwarder-renew.timer"
+  systemctl daemon-reload
+  systemctl enable --now marzforwarder-renew.timer 2>/dev/null
 
   echo "✅ Installation completed."
 }
 
 function add {
-  read -p "🌐 Enter domain name (e.g., sub.example.com): " DOMAIN
-  read -p "🎯 Enter target panel domain (e.g., panel.example.com): " PANEL
-  read -p "📡 Enter target panel port (e.g., 8443): " PORT
+  read -p "🌐 Enter domain: " DOMAIN
+  read -p "📍 Enter target panel domain: " PANEL
+  read -p "🚪 Enter target port: " PORT
+  RANDOM_PORT=$((10000 + RANDOM % 1000))
 
-  if [ -z "$DOMAIN" ] || [ -z "$PANEL" ] || [ -z "$PORT" ]; then
-    echo "❌ Invalid input. All fields are required."
-    exit 1
-  fi
-
-  echo "➕ Creating forwarder for $DOMAIN -> $PANEL:$PORT"
+  echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT on local port $RANDOM_PORT"
   mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
-
-  # Generate random local PHP port
-  LOCAL_PORT=$((10000 + RANDOM % 10000))
 
   cat > "$INSTALL_DIR/instances/$DOMAIN/config.json" <<EOF
 {
   "target_domain": "$PANEL",
-  "target_port": $PORT,
-  "local_php_port": $LOCAL_PORT
+  "target_port": $PORT
 }
 EOF
 
-  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" \
-    -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
-  echo "🔐 Generating SSL certificate for $DOMAIN..."
-  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN"
-  if [ $? -ne 0 ]; then
+  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
     echo "❌ SSL generation failed for $DOMAIN"
-    exit 1
-  fi
+    return 1
+  }
 
-  create_service "$DOMAIN" "$LOCAL_PORT"
+  create_service "$DOMAIN" "$RANDOM_PORT"
   systemctl enable --now marzforwarder-$DOMAIN
-  echo "✅ Forwarder for $DOMAIN is created and running."
+
+  echo "✅ Forwarder created and running."
 }
 
 function create_service {
   DOMAIN=$1
-  PORT=$2
+  LOCAL_PORT=$2
   SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
 
   cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
 #!/bin/bash
 cd "$INSTALL_DIR/instances/$DOMAIN"
-php -S 127.0.0.1:$PORT forward.php
+php -S 127.0.0.1:$LOCAL_PORT forward.php
 EOF
 
   chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
 
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=Marzban Forwarder for $DOMAIN
+Description=Marzban Sub Forwarder for $DOMAIN
 After=network.target
 
 [Service]
-ExecStart=/bin/bash $INSTALL_DIR/instances/$DOMAIN/run.sh
+ExecStart=$INSTALL_DIR/instances/$DOMAIN/run.sh
 Restart=always
 User=root
 
@@ -106,7 +96,7 @@ function remove {
     exit 1
   fi
 
-  echo "🧹 Removing forwarder $DOMAIN..."
+  echo "❌ Removing forwarder $DOMAIN..."
   systemctl stop marzforwarder-$DOMAIN
   systemctl disable marzforwarder-$DOMAIN
   rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
@@ -119,26 +109,42 @@ function remove {
 function uninstall {
   echo "🧨 Uninstalling all Marzban forwarders..."
 
-  for dir in "$INSTALL_DIR/instances/"*; do
-    DOMAIN=$(basename "$dir")
-    echo "🧹 Removing forwarder: $DOMAIN"
-    systemctl stop marzforwarder-$DOMAIN 2>/dev/null
-    systemctl disable marzforwarder-$DOMAIN 2>/dev/null
-    rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
-    certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
-  done
+  if [ -d "$INSTALL_DIR/instances" ]; then
+    for dir in "$INSTALL_DIR/instances/"*; do
+      DOMAIN=$(basename "$dir")
+      echo "🧹 Removing forwarder: $DOMAIN"
+      systemctl stop marzforwarder-$DOMAIN 2>/dev/null
+      systemctl disable marzforwarder-$DOMAIN 2>/dev/null
+      rm -f /etc/systemd/system/marzforwarder-$DOMAIN.service
+      certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
+    done
+  else
+    echo "⚠️ Install directory not found. Attempting to clean up residual services..."
+    for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
+      DOMAIN=$(echo "$svc" | sed 's/marzforwarder-\(.*\)\.service/\1/')
+      echo "🧹 Cleaning residual: $DOMAIN"
+      systemctl stop "$svc" 2>/dev/null
+      systemctl disable "$svc" 2>/dev/null
+      rm -f "/etc/systemd/system/$svc"
+      certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
+    done
+  fi
 
+  echo "🗑 Removing install directory..."
   rm -rf "$INSTALL_DIR"
+
+  echo "🗑 Removing CLI command..."
   rm -f "$BIN_PATH"
+
   rm -f /etc/systemd/system/marzforwarder-renew.service
   rm -f /etc/systemd/system/marzforwarder-renew.timer
   systemctl daemon-reload
 
-  echo "✅ Fully uninstalled."
+  echo "✅ Fully uninstalled!"
 }
 
 function renew-cert {
-  echo "🔁 Stopping all forwarders before SSL renewal..."
+  echo "🔁 Stopping all forwarders before renewal..."
   for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
     systemctl stop "$svc"
   done
@@ -161,5 +167,5 @@ case "$1" in
   remove) remove "$2" ;;
   uninstall) uninstall ;;
   renew-cert) renew-cert ;;
-  *) echo "❌ Unknown command. Use: install | add | list | remove | uninstall | renew-cert" ;;
+  *) echo "❌ Unknown command. Use: install | add | list | remove <domain> | uninstall | renew-cert" ;;
 esac
