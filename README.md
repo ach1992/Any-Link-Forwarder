@@ -1,4 +1,4 @@
-# Marzban Forwarder (PHP + SSL)
+# Marzban Subscription Link Forwarder (PHP + SSL)
 
 A lightweight reverse proxy for forwarding Marzban panel subscriptions through your custom domain with HTTPS — using only PHP, certbot, and socat.
 
