@@ -1,9 +1,7 @@
 [Unit]
-Description=Daily SSL renewal timer for MarzForwarder
+Description=Renew SSL Certificates for MarzForwarder
+After=network.target
 
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/marzforwarder renew-cert
