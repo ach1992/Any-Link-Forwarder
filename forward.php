@@ -8,7 +8,6 @@ if (empty($_SERVER['HTTP_USER_AGENT'])) {
 $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
 $isTextHTML = str_contains($accept, 'text/html') || str_contains($accept, '*/*');
 
-// Detect domain directory based on script path
 $instancePath = __DIR__;
 $configPath = $instancePath . '/config.json';
 
@@ -21,18 +20,11 @@ $config = json_decode(file_get_contents($configPath), true);
 $targetDomain = $config['target_domain'];
 $targetPort = $config['target_port'];
 
-// Optional: validate config
-if (!$targetDomain || !$targetPort) {
-    http_response_code(500);
-    exit("Invalid config data");
-}
-
-// Rewrite request path
 $path = $_SERVER['REQUEST_URI'] ?? '';
 $proxyPath = str_replace('/sub', '', $path);
-$URL = "https://{$targetDomain}:{$targetPort}{$proxyPath}";
+$portSegment = ($targetPort == 443) ? '' : ':' . $targetPort;
+$URL = "https://{$targetDomain}{$portSegment}{$proxyPath}";
 
-// Execute cURL
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $URL);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -52,31 +44,18 @@ if (curl_errno($ch)) {
 
 curl_close($ch);
 
-// Parse headers
-$headers = get_headers_from_curl_response($data);
+$header_text = substr($data, 0, strpos($data, "\r\n\r\n"));
+$body = substr($data, strlen($header_text) + 4);
 
-if (!$isTextHTML && (empty($headers) || $code !== 200)) {
-    http_response_code($code);
-    exit('Error!');
-}
-
-foreach ($headers as $key => $header) {
-    header("$key: $header");
-}
-
-function get_headers_from_curl_response(&$response): array {
-    $headers = [];
-    $header_text = substr($response, 0, strpos($response, "\r\n\r\n"));
-    foreach (explode("\r\n", $header_text) as $i => $line) {
-        if ($i === 0) continue;
-        list($key, $value) = explode(': ', $line, 2);
-        $key = strtolower($key);
-        if (in_array($key, ['content-disposition', 'content-type', 'subscription-userinfo', 'profile-update-interval'])) {
-            $headers[ucwords($key, '-')] = trim($value);
-        }
+$headers = [];
+foreach (explode("\r\n", $header_text) as $i => $line) {
+    if ($i === 0) continue;
+    list($key, $value) = explode(': ', $line, 2);
+    $key = strtolower($key);
+    if (in_array($key, ['content-disposition', 'content-type', 'subscription-userinfo', 'profile-update-interval'])) {
+        header(ucwords($key, '-') . ': ' . trim($value));
     }
-    $response = trim(substr($response, strlen($header_text)));
-    return $headers;
 }
 
-echo $data;
+http_response_code($code);
+echo $body;
