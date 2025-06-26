@@ -68,10 +68,8 @@ EOF
 
 function start {
   DOMAIN=$1
-  if [ -z "$DOMAIN" ]; then
-    echo "❗ Usage: marzforwarder start yourdomain.ir"
-    exit 1
-  fi
+  PORT=$2
+  PORT=${PORT:-443}
 
   CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
   KEY_PATH="/etc/letsencrypt/live/$DOMAIN/privkey.pem"
@@ -81,11 +79,11 @@ function start {
     exit 1
   fi
 
-  echo "🚀 Starting forwarder on https://$DOMAIN (port 443)"
+  echo "🚀 Starting forwarder on https://$DOMAIN:$PORT"
   php -S 127.0.0.1:8080 -t "$INSTALL_DIR" "$INSTALL_DIR/forward.php" &
   PHP_PID=$!
 
-  socat OPENSSL-LISTEN:443,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8080 &
+  socat OPENSSL-LISTEN:$PORT,cert=$CERT_PATH,key=$KEY_PATH,reuseaddr,fork TCP:127.0.0.1:8080 &
   SOCAT_PID=$!
 
   trap "kill $PHP_PID $SOCAT_PID" SIGINT SIGTERM
@@ -94,10 +92,8 @@ function start {
 
 function systemd_setup {
   DOMAIN=$1
-  if [ -z "$DOMAIN" ]; then
-    echo "❗ Usage: marzforwarder systemd-setup yourdomain.ir"
-    exit 1
-  fi
+  PORT=$2
+  PORT=${PORT:-443}
 
   SERVICE_FILE="/etc/systemd/system/marzforwarder.service"
 
@@ -109,7 +105,7 @@ Description=Marzban Sub Forwarder
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/marzforwarder start $DOMAIN
+ExecStart=/usr/local/bin/marzforwarder start $DOMAIN $PORT
 Restart=always
 RestartSec=5
 User=root
@@ -125,7 +121,7 @@ EOF
   systemctl enable marzforwarder
   systemctl start marzforwarder
 
-  echo "✅ Forwarder is now running as a background service."
+  echo "✅ Forwarder is now running on port $PORT"
 }
 
 function uninstall {
@@ -158,8 +154,8 @@ case "$1" in
   install) install ;;
   configure) configure ;;
   reconfigure) reconfigure ;;
-  start) start "$2" ;;
-  systemd-setup) systemd_setup "$2" ;;
+  start) start "$2" "$3" ;;
+  systemd-setup) systemd_setup "$2" "$3" ;;
   uninstall) uninstall ;;
   "")
     echo "🧙 Welcome to Marzban Sub Forwarder Setup Wizard"
@@ -176,15 +172,17 @@ case "$1" in
     SYSOPT=${SYSOPT:-Y}
     if [[ "$SYSOPT" =~ ^[Yy]$ ]]; then
       read -p "Enter your forwarder domain (e.g. update.domain.ir): " FD
-      systemd_setup "$FD"
+      read -p "Enter port to expose (default 443): " PORT
+      PORT=${PORT:-443}
+      systemd_setup "$FD" "$PORT"
     else
-      echo -e "👉 You can later run it with: marzforwarder start yourdomain.ir"
+      echo -e "👉 You can later run it with: marzforwarder start yourdomain.ir [port]"
     fi
 
     echo -e "\n✅ All done!"
     ;;
   *)
-    echo "Usage: marzforwarder {install|configure|reconfigure|start <domain>|systemd-setup <domain>|uninstall}"
+    echo "Usage: marzforwarder {install|configure|reconfigure|start <domain> [port]|systemd-setup <domain> [port]|uninstall}"
     exit 1
     ;;
 esac
