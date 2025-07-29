@@ -46,6 +46,12 @@ function install {
   rm -rf "$TMP_DIR"
 
   echo "✅ Installation completed."
+
+  read -p "Would you like to add your first forwarder now? (y/n): " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    add
+  fi
 }
 
 function add {
@@ -100,6 +106,15 @@ server {
 EOF
 
   sudo ln -s /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/
+
+  # Test Nginx configuration before attempting SSL
+  if ! sudo nginx -t; then
+    echo "❌ Nginx configuration test failed for $DOMAIN. Please check your inputs and Nginx setup."
+    sudo rm /etc/nginx/sites-enabled/$DOMAIN
+    sudo rm /etc/nginx/sites-available/$DOMAIN
+    return 1
+  fi
+  sudo systemctl reload nginx
 
   echo "🔐 Obtaining SSL certificate for $DOMAIN..."
   sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
