@@ -173,5 +173,20 @@ case "$1" in
   remove) remove "$2" ;;
   uninstall) uninstall ;;
   renew-cert) renew-cert ;;
-  *) echo "❌ Unknown command. Use: install | add | list | remove <domain> | uninstall | renew-cert" ;;
+  "" | help | -h | --help)
+    echo "🛠 Available marzforwarder commands:"
+    echo ""
+    echo "  install             🔧 Install all dependencies and setup the tool"
+    echo "  add                 ➕ Add a new domain forwarder"
+    echo "  list                📋 List all configured forwarders"
+    echo "  remove <domain>     ❌ Remove a forwarder"
+    echo "  uninstall           🧨 Fully uninstall marzforwarder and clean all files"
+    echo "  renew-cert          🔁 Manually renew SSL certificates for all domains"
+    echo ""
+    echo "ℹ️  Example: marzforwarder add"
+    ;;
+  *)
+    echo "❌ Unknown command: '$1'"
+    echo "Type 'marzforwarder help' to see available commands."
+    ;;
 esac
