@@ -55,6 +55,10 @@ function install {
 }
 
 function add {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "❌ This command requires root privileges. Please run with sudo: sudo marzforwarder add"
+    return 1
+  fi
   read -p "🌐 Enter domain to listen (e.g., sub.domain.com): " DOMAIN
   if [ -d "$INSTALL_DIR/instances/$DOMAIN" ]; then
     echo "⚠️ Forwarder for $DOMAIN already exists."
