@@ -2,6 +2,7 @@
 error_reporting(0);
 ini_set('display_errors', 0);
 
+// بارگذاری تنظیمات
 $config_path = __DIR__ . '/config.json';
 if (!file_exists($config_path)) {
     http_response_code(500);
@@ -18,37 +19,44 @@ if (!$config || !isset($config['target_domain'], $config['target_port'])) {
     exit;
 }
 
-$target_domain = $config['target_domain'];
-$target_port = $config['target_port'];
-$request_uri = $_SERVER['REQUEST_URI'];
-$target_url = "https://{$target_domain}:{$target_port}{$request_uri}";
+// ساخت آدرس مقصد
+$target_url = "https://{$config['target_domain']}:{$config['target_port']}{$_SERVER['REQUEST_URI']}";
 
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $target_url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+// CURL برای فوروارد کامل
+$ch = curl_init($target_url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HEADER => true, // دریافت body + header
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_SSL_VERIFYPEER => false,
+]);
 
 $response = curl_exec($ch);
-$httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-$curl_error = curl_error($ch);
-curl_close($ch);
-
-if ($response === false || $httpcode === 0) {
+if ($response === false) {
     http_response_code(502);
     header("Content-Type: text/plain");
-    echo "Forwarding failed: $curl_error";
+    echo "Error contacting backend: " . curl_error($ch);
+    curl_close($ch);
     exit;
 }
 
+// جدا کردن هدر و بادی
+$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+$header = substr($response, 0, $header_size);
+$body = substr($response, $header_size);
+$httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// ست کردن HTTP status
 http_response_code($httpcode);
-if ($content_type) {
-    header("Content-Type: $content_type");
-} else {
-    header("Content-Type: text/plain");
+
+// ارسال همه هدرها به جز هدرهای ممنوع (مثل Transfer-Encoding)
+foreach (explode("\r\n", $header) as $line) {
+    if (stripos($line, 'HTTP/') === 0 || empty($line)) continue;
+    if (stripos($line, 'Transfer-Encoding:') === 0) continue;
+    if (stripos($line, 'Content-Encoding:') === 0) continue; // gzip issues
+    header($line, false);
 }
 
-echo $response;
+// ارسال محتوای کامل
+echo $body;
