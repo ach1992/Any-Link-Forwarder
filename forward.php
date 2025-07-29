@@ -21,7 +21,7 @@ $targetDomain = $config['target_domain'];
 $targetPort = $config['target_port'];
 
 $path = $_SERVER['REQUEST_URI'] ?? '';
-$proxyPath = str_replace('/sub', '', $path);
+$proxyPath = $path;
 $portSegment = ($targetPort == 443) ? '' : ':' . $targetPort;
 $URL = "https://{$targetDomain}{$portSegment}{$proxyPath}";
 
