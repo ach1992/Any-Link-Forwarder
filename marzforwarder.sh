@@ -52,13 +52,32 @@ function add {
 }
 EOF
 
+  echo "📝 Creating temporary Nginx config to pass certbot challenge..."
+  TEMP_CONF="/etc/nginx/sites-available/$DOMAIN-temp"
+  ln -s "$TEMP_CONF" "/etc/nginx/sites-enabled/$DOMAIN-temp"
+
+  cat > "$TEMP_CONF" <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+}
+EOF
+
+  mkdir -p /var/www/html
+  nginx -t && systemctl reload nginx
+
   echo "🔐 Obtaining SSL certificate with certbot..."
-  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
+  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
     echo "❌ SSL generation failed for $DOMAIN"
+    rm -f "/etc/nginx/sites-enabled/$DOMAIN-temp" "$TEMP_CONF"
     return 1
   }
 
-  echo "📝 Creating Nginx configuration..."
+  echo "📝 Creating final Nginx configuration..."
   NGINX_CONF_PATH="/etc/nginx/sites-available/$DOMAIN"
   NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/$DOMAIN"
 
@@ -81,6 +100,7 @@ server {
 EOF
 
   ln -s "$NGINX_CONF_PATH" "$NGINX_ENABLED_PATH"
+  rm -f "/etc/nginx/sites-enabled/$DOMAIN-temp" "$TEMP_CONF"
   nginx -t && systemctl reload nginx
 
   echo "✅ Forwarder created and running on https://$DOMAIN:$LISTEN_PORT"
