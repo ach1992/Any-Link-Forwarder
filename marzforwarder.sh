@@ -83,11 +83,11 @@ EOF
   # Download forward.php directly to the instance directory
   curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
-  # Create Nginx configuration without SSL for initial test
+  # Create Nginx configuration for webroot challenge
   sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
 server {
-    listen $LISTEN_PORT;
-    listen [::]:$LISTEN_PORT;
+    listen 80;
+    listen [::]:80;
     server_name $DOMAIN;
 
     root $INSTALL_DIR/instances/$DOMAIN;
@@ -102,6 +102,11 @@ server {
         fastcgi_pass unix:/var/run/php/php-fpm.sock;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         include fastcgi_params;
+    }
+
+    location ~ /\.well-known/acme-challenge/ {
+        allow all;
+        root /var/www/html;
     }
 }
 EOF
@@ -118,7 +123,8 @@ EOF
   sudo systemctl reload nginx
 
   echo "🔐 Obtaining SSL certificate for $DOMAIN..."
-  sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
+  # Use webroot plugin for Certbot
+  sudo certbot certonly --webroot -w /var/www/html -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
     echo "❌ SSL generation failed for $DOMAIN. Please check your DNS settings and try again."
     sudo rm /etc/nginx/sites-enabled/$DOMAIN
     sudo rm /etc/nginx/sites-available/$DOMAIN
