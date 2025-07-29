@@ -2,12 +2,11 @@
 
 INSTALL_DIR="/var/www/marzban-forward"
 BIN_PATH="/usr/local/bin/marzforwarder"
-NGINX_SITES="/etc/nginx/sites-enabled"
-FORWARD_PHP_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php"
+NGINX_DIR="/etc/nginx/sites-enabled"
 
 function install {
   echo "📦 Installing dependencies..."
-  apt update && apt install -y nginx php php-curl curl certbot unzip
+  apt update && apt install -y nginx php php-curl curl certbot unzip python3-certbot-nginx
 
   echo "📁 Creating base directory..."
   mkdir -p "$INSTALL_DIR/instances"
@@ -15,10 +14,6 @@ function install {
   echo "🔗 Setting up CLI shortcut..."
   curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh" -o "$BIN_PATH"
   chmod +x "$BIN_PATH"
-
-  echo "🔄 Restarting Nginx..."
-  systemctl enable nginx
-  systemctl restart nginx
 
   echo "✅ Installation completed."
   add
@@ -36,7 +31,6 @@ function add {
 
   echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT"
   mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
-
   cat > "$INSTALL_DIR/instances/$DOMAIN/config.json" <<EOF
 {
   "target_domain": "$PANEL",
@@ -44,7 +38,7 @@ function add {
 }
 EOF
 
-  curl -sSL "$FORWARD_PHP_URL" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  curl -sSL "https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   echo "🔐 Requesting SSL certificate via certbot..."
   certbot certonly --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
@@ -52,26 +46,25 @@ EOF
     return 1
   }
 
-  echo "🧾 Creating Nginx config for $DOMAIN..."
-  cat > "$NGINX_SITES/$DOMAIN.conf" <<EOF
+  echo "📝 Creating Nginx config for $DOMAIN"
+  cat > "$NGINX_DIR/$DOMAIN.conf" <<EOF
 server {
-    listen 443 ssl;
-    server_name $DOMAIN;
+  listen 443 ssl;
+  server_name $DOMAIN;
 
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+  ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
 
+  location / {
     root $INSTALL_DIR/instances/$DOMAIN;
     index forward.php;
-
-    location / {
-        try_files \$uri /forward.php\$is_args\$args;
-    }
+  }
 }
 EOF
 
-  systemctl reload nginx
-  echo "✅ Forwarder for $DOMAIN has been created and is now active."
+  nginx -t && systemctl reload nginx
+
+  echo "✅ Forwarder created and running at https://$DOMAIN"
 }
 
 function list {
@@ -86,39 +79,58 @@ function remove {
     exit 1
   fi
 
-  echo "🧹 Removing forwarder for $DOMAIN..."
-  rm -rf "$INSTALL_DIR/instances/$DOMAIN"
-  rm -f "$NGINX_SITES/$DOMAIN.conf"
-  certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
-  systemctl reload nginx
+  read -p "❓ Are you sure you want to delete forwarder for $DOMAIN? (y/n): " CONFIRM
+  [[ "$CONFIRM" != "y" ]] && echo "❌ Cancelled." && return
 
+  echo "🧹 Removing forwarder: $DOMAIN"
+  certbot delete --cert-name "$DOMAIN" --non-interactive
+  rm -rf "$INSTALL_DIR/instances/$DOMAIN"
+  rm -f "$NGINX_DIR/$DOMAIN.conf"
+
+  nginx -t && systemctl reload nginx
   echo "✅ $DOMAIN removed."
 }
 
 function uninstall {
-  echo "🧨 Uninstalling MarzForwarder..."
-  for dir in "$INSTALL_DIR/instances/"*; do
-    DOMAIN=$(basename "$dir")
-    echo "🧹 Removing: $DOMAIN"
-    remove "$DOMAIN"
-  done
+  read -p "⚠️ This will uninstall ALL forwarders. Are you sure? (y/n): " CONFIRM
+  [[ "$CONFIRM" != "y" ]] && echo "❌ Cancelled." && return
+
+  echo "🧨 Uninstalling everything..."
+  if [ -d "$INSTALL_DIR/instances" ]; then
+    for dir in "$INSTALL_DIR/instances/"*; do
+      DOMAIN=$(basename "$dir")
+      echo "🧹 Removing forwarder: $DOMAIN"
+      rm -rf "$INSTALL_DIR/instances/$DOMAIN"
+      rm -f "$NGINX_DIR/$DOMAIN.conf"
+      certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
+    done
+  fi
 
   rm -rf "$INSTALL_DIR"
   rm -f "$BIN_PATH"
-  echo "✅ Fully uninstalled."
+
+  echo "🔄 Reloading nginx..."
+  nginx -t && systemctl reload nginx
+
+  echo "✅ Fully uninstalled!"
 }
 
 function status {
-  DOMAIN=$2
+  DOMAIN=$1
   if [ -z "$DOMAIN" ]; then
     echo "❌ Usage: marzforwarder status <domain>"
     exit 1
   fi
 
-  echo "🔍 Checking status for $DOMAIN"
-  systemctl is-active --quiet nginx && echo "✅ Nginx is running." || echo "❌ Nginx is NOT running."
-  test -f "$INSTALL_DIR/instances/$DOMAIN/forward.php" && echo "✅ Forward.php exists." || echo "❌ forward.php missing."
-  test -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" && echo "✅ SSL certificate is present." || echo "❌ SSL certificate not found."
+  echo "📊 Checking status for $DOMAIN..."
+  if [ ! -f "$NGINX_DIR/$DOMAIN.conf" ]; then
+    echo "❌ Nginx config not found."
+    return 1
+  fi
+
+  echo "🔍 Nginx status: $(systemctl is-active nginx)"
+  echo "🔐 SSL info:"
+  openssl x509 -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" -text -noout | grep -E 'Subject:|Not Before:|Not After :'
 }
 
 case "$1" in
@@ -127,18 +139,18 @@ case "$1" in
   list) list ;;
   remove) remove "$2" ;;
   uninstall) uninstall ;;
-  status) status "$@" ;;
+  renew-cert) certbot renew && systemctl reload nginx ;;
+  status) status "$2" ;;
   "" | help | -h | --help)
     echo "🛠 Available marzforwarder commands:"
     echo ""
-    echo "  install              🔧 Install and setup the tool"
-    echo "  add                  ➕ Add a new forwarder"
-    echo "  list                 📋 List all forwarders"
-    echo "  remove <domain>      ❌ Remove a forwarder"
-    echo "  uninstall            🧨 Remove everything"
-    echo "  status <domain>      📡 Show status of a domain forwarder"
-    echo ""
-    echo "ℹ️ Example: marzforwarder add"
+    echo "  install             🔧 Install dependencies and set up"
+    echo "  add                 ➕ Add a new domain forwarder"
+    echo "  list                📋 List all forwarders"
+    echo "  remove <domain>     ❌ Remove a forwarder"
+    echo "  uninstall           🧨 Uninstall everything"
+    echo "  status <domain>     📊 Check forwarder and cert status"
+    echo "  renew-cert          🔁 Manually renew all SSL certs"
     ;;
   *)
     echo "❌ Unknown command: '$1'"
