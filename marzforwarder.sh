@@ -79,15 +79,12 @@ EOF
   # Download forward.php directly to the instance directory
   curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
-  # Create Nginx configuration
+  # Create Nginx configuration without SSL for initial test
   sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
 server {
-    listen $LISTEN_PORT ssl;
-    listen [::]:$LISTEN_PORT ssl;
+    listen $LISTEN_PORT;
+    listen [::]:$LISTEN_PORT;
     server_name $DOMAIN;
-
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
 
     root $INSTALL_DIR/instances/$DOMAIN;
     index forward.php;
@@ -123,6 +120,32 @@ EOF
     sudo rm /etc/nginx/sites-available/$DOMAIN
     return 1
   }
+
+  # Update Nginx configuration with SSL paths after successful certificate generation
+  sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
+server {
+    listen $LISTEN_PORT ssl;
+    listen [::]:$LISTEN_PORT ssl;
+    server_name $DOMAIN;
+
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+
+    root $INSTALL_DIR/instances/$DOMAIN;
+    index forward.php;
+
+    location / {
+        try_files \$uri \$uri/ /forward.php\$is_args\$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+EOF
 
   sudo nginx -t && sudo systemctl reload nginx
 
