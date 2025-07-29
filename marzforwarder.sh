@@ -5,6 +5,9 @@ BIN_PATH="/usr/local/bin/marzforwarder"
 RENEW_SERVICE_PATH="/etc/systemd/system/marzforwarder-renew.service"
 RENEW_TIMER_PATH="/etc/systemd/system/marzforwarder-renew.timer"
 
+# Get the directory where the script is located after curl download
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 function cleanup {
   echo "🧹 Cleaning up previous installations..."
   sudo rm -rf "$INSTALL_DIR"
@@ -25,12 +28,12 @@ function install {
   sudo mkdir -p "$INSTALL_DIR/instances"
 
   echo "🔗 Setting up CLI shortcut..."
-  sudo cp /home/ubuntu/marzforwarder_nginx.sh "$BIN_PATH"
+  sudo cp "$SCRIPT_DIR/marzforwarder.sh" "$BIN_PATH"
   sudo chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  sudo cp /home/ubuntu/upload/marzforwarder-renew.service "$RENEW_SERVICE_PATH"
-  sudo cp /home/ubuntu/upload/marzforwarder-renew.timer "$RENEW_TIMER_PATH"
+  sudo cp "$SCRIPT_DIR/marzforwarder-renew.service" "$RENEW_SERVICE_PATH"
+  sudo cp "$SCRIPT_DIR/marzforwarder-renew.timer" "$RENEW_TIMER_PATH"
   sudo systemctl daemon-reload
   sudo systemctl enable --now marzforwarder-renew.timer
 
@@ -59,7 +62,7 @@ function add {
 }
 EOF
 
-  sudo cp /home/ubuntu/fixed_forward.php "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  sudo cp "$SCRIPT_DIR/forward.php" "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   # Create Nginx configuration
   sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
