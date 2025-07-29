@@ -32,8 +32,24 @@ curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
+curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+
+// Add headers from the original request
+$headers = [];
+foreach ($_SERVER as $key => $value) {
+    if (strpos($key, 'HTTP_') === 0) {
+        $header = str_replace('_', '-', substr($key, 5));
+        if (!in_array(strtolower($header), ['host', 'connection', 'content-length', 'content-encoding'])) {
+            $headers[] = $header . ': ' . $value;
+        }
+    }
+}
+if (!empty($headers)) {
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+}
 
 $data = curl_exec($ch);
 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -50,7 +66,13 @@ $body = substr($data, strlen($header_text) + 4);
 
 foreach (explode("\r\n", $header_text) as $i => $line) {
     if ($i === 0) continue;
-    if (stripos($line, 'Content-Length') === 0 || stripos($line, 'Transfer-Encoding') === 0 || stripos($line, 'Connection') === 0 || stripos($line, 'Content-Encoding') === 0 || stripos($line, 'Date') === 0 || stripos($line, 'Server') === 0) continue;
+    if (stripos($line, 'Content-Length') === 0 || 
+        stripos($line, 'Transfer-Encoding') === 0 || 
+        stripos($line, 'Connection') === 0 || 
+        stripos($line, 'Content-Encoding') === 0 || 
+        stripos($line, 'Date') === 0 || 
+        stripos($line, 'Server') === 0 ||
+        stripos($line, 'Set-Cookie') === 0) continue;
     header($line);
 }
 
