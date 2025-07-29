@@ -1,63 +1,51 @@
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
 
-if (empty($_SERVER['HTTP_USER_AGENT'])) {
-    http_response_code(403);
-    exit("Access Denied");
-}
-
-$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
-$isTextHTML = str_contains($accept, 'text/html') || str_contains($accept, '*/*');
-
-$instancePath = __DIR__;
-$configPath = $instancePath . '/config.json';
-
-if (!file_exists($configPath)) {
+$config_path = __DIR__ . '/config.json';
+if (!file_exists($config_path)) {
     http_response_code(500);
-    exit("Config file not found");
+    exit("Config file not found.");
 }
 
-$config = json_decode(file_get_contents($configPath), true);
-$targetDomain = $config['target_domain'];
-$targetPort = $config['target_port'];
+$config = json_decode(file_get_contents($config_path), true);
+if (!$config || !isset($config['target_domain'], $config['target_port'])) {
+    http_response_code(500);
+    exit("Invalid config format.");
+}
 
-$path = $_SERVER['REQUEST_URI'] ?? '';
-$proxyPath = $path; 
+$target_url = "https://{$config['target_domain']}:{$config['target_port']}{$_SERVER['REQUEST_URI']}";
 
-$portSegment = ($targetPort == 443) ? '' : ':' . $targetPort;
-$URL = "https://{$targetDomain}{$portSegment}{$proxyPath}";
+$ch = curl_init($target_url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_HEADER => true,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_TIMEOUT => 15,
+    CURLOPT_USERAGENT => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+]);
 
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $URL);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HEADER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
-curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
-curl_setopt($ch, CURLOPT_HTTPHEADER, $isTextHTML ? ['Accept: text/html'] : []);
-
-$data = curl_exec($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-if (curl_errno($ch)) {
+$response = curl_exec($ch);
+if ($response === false) {
     http_response_code(502);
-    exit('cURL Error: ' . curl_error($ch));
+    exit("Upstream error: " . curl_error($ch));
 }
 
+$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+$header = substr($response, 0, $header_size);
+$body = substr($response, $header_size);
+$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-$header_text = substr($data, 0, strpos($data, "\r\n\r\n"));
-$body = substr($data, strlen($header_text) + 4);
-
-foreach (explode("\r\n", $header_text) as $i => $line) {
-    if ($i === 0) continue;
+foreach (explode("\r\n", $header) as $i => $line) {
+    if ($i === 0 || trim($line) === '') continue;
     list($key, $value) = explode(': ', $line, 2);
     $key = strtolower($key);
-    if (in_array($key, ['subscription-userinfo', 'profile-update-interval'])) {
-        header(ucwords($key, '-') . ': ' . trim($value));
+    if (!in_array($key, ['transfer-encoding', 'content-encoding'])) {
+        header("$key: $value", false);
     }
 }
 
-header('Content-Type: text/plain');
-
-http_response_code($code);
+http_response_code($http_code);
 echo $body;
