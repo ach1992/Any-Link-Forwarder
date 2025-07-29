@@ -12,7 +12,7 @@ FORWARD_PHP_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 
 function install {
   echo "📦 Installing dependencies..."
-  apt update && apt install -y php php-curl curl certbot unzip socat netcat
+  apt update && apt install -y php php-fpm php-curl curl certbot unzip nginx
 
   echo "📁 Creating base directory..."
   mkdir -p "$INSTALL_DIR/instances"
@@ -40,17 +40,15 @@ function add {
 
   read -p "📍 Enter target panel domain (e.g., panel.domain.ir): " PANEL
   read -p "🚪 Enter target panel port (e.g., 443): " PORT
-  read -p "🔊 Enter local listen port (e.g., 443, 8443, 2096...): " LISTEN_PORT
-  RANDOM_PORT=$((10000 + RANDOM % 1000))
 
-  echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT on port $LISTEN_PORT"
+  echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT"
   mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
 
   cat > "$INSTALL_DIR/instances/$DOMAIN/config.json" <<EOF
 {
   "target_domain": "$PANEL",
   "target_port": $PORT,
-  "listen_port": $LISTEN_PORT
+  "listen_port": 443
 }
 EOF
 
@@ -61,42 +59,35 @@ EOF
     return 1
   }
 
-  create_service "$DOMAIN" "$RANDOM_PORT" "$LISTEN_PORT"
-  systemctl enable --now "marzforwarder-$DOMAIN"
+  create_nginx_config "$DOMAIN"
+  systemctl reload nginx
 
-  echo "✅ Forwarder created and running."
+  echo "✅ Forwarder created and ready."
 }
 
-function create_service {
+function create_nginx_config {
   DOMAIN=$1
-  LOCAL_PORT=$2
-  LISTEN_PORT=$3
-  SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
+  CONF_PATH="/etc/nginx/sites-available/$DOMAIN"
+  cat > "$CONF_PATH" <<EOF
+server {
+  listen 443 ssl;
+  server_name $DOMAIN;
 
-  cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
-#!/bin/bash
-cd "$INSTALL_DIR/instances/$DOMAIN"
-php -S 127.0.0.1:$LOCAL_PORT forward.php &
-while ! nc -z 127.0.0.1 $LOCAL_PORT; do sleep 0.5; done
-exec socat openssl-listen:$LISTEN_PORT,reuseaddr,fork,verify=0,cert=/etc/letsencrypt/live/$DOMAIN/fullchain.pem,key=/etc/letsencrypt/live/$DOMAIN/privkey.pem,cafile=/etc/ssl/certs/ca-certificates.crt TCP:127.0.0.1:$LOCAL_PORT
+  ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
 
+  location /sub/ {
+    root $INSTALL_DIR/instances/$DOMAIN;
+    index forward.php;
+    try_files \$uri /forward.php;
+    fastcgi_pass unix:/run/php/php-fpm.sock;
+    fastcgi_index forward.php;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $INSTALL_DIR/instances/$DOMAIN/forward.php;
+  }
+}
 EOF
-
-  chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
-
-  cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=Marzban Sub Forwarder for $DOMAIN
-After=network.target
-
-[Service]
-ExecStart=$INSTALL_DIR/instances/$DOMAIN/run.sh
-Restart=always
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
+  ln -s "$CONF_PATH" /etc/nginx/sites-enabled/ || true
 }
 
 function list {
@@ -112,57 +103,27 @@ function remove {
   fi
 
   echo "❌ Removing forwarder $DOMAIN..."
-  systemctl stop "marzforwarder-$DOMAIN"
-  systemctl disable "marzforwarder-$DOMAIN"
-  rm -f "/etc/systemd/system/marzforwarder-$DOMAIN.service"
   rm -rf "$INSTALL_DIR/instances/$DOMAIN"
+  rm -f "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
   certbot delete --cert-name "$DOMAIN" --non-interactive
-
+  systemctl reload nginx
   echo "✅ Removed $DOMAIN."
 }
 
 function uninstall {
   echo "🧨 Uninstalling all Marzban forwarders..."
-
-  if [ -d "$INSTALL_DIR/instances" ]; then
-    for dir in "$INSTALL_DIR/instances/"*; do
-      DOMAIN=$(basename "$dir")
-      echo "🧹 Removing forwarder: $DOMAIN"
-      systemctl stop "marzforwarder-$DOMAIN" 2>/dev/null
-      systemctl disable "marzforwarder-$DOMAIN" 2>/dev/null
-      rm -f "/etc/systemd/system/marzforwarder-$DOMAIN.service"
-      certbot delete --cert-name "$DOMAIN" --non-interactive 2>/dev/null
-    done
-  fi
-
-  echo "🗑 Removing install directory..."
   rm -rf "$INSTALL_DIR"
-
-  echo "🗑 Removing CLI command..."
   rm -f "$BIN_PATH"
-
-  echo "🧹 Removing auto-renew services..."
-  rm -f "$RENEW_SERVICE_PATH"
-  rm -f "$RENEW_TIMER_PATH"
+  rm -f "$RENEW_SERVICE_PATH" "$RENEW_TIMER_PATH"
   systemctl daemon-reload
-
   echo "✅ Fully uninstalled!"
 }
 
 function renew-cert {
-  echo "🔁 Stopping all forwarders before renewal..."
-  for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
-    systemctl stop "$svc"
-  done
-
   echo "🔐 Running certbot renew..."
   certbot renew
-
-  echo "🚀 Restarting forwarders..."
-  for svc in $(systemctl list-units --type=service --no-legend | grep 'marzforwarder-.*\.service' | awk '{print $1}'); do
-    systemctl start "$svc"
-  done
-
+  echo "🔄 Reloading Nginx..."
+  systemctl reload nginx
   echo "✅ SSL renewal completed."
 }
 
