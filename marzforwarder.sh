@@ -1,6 +1,7 @@
 #!/bin/bash
 
 INSTALL_DIR="/var/www/marzban-forward"
+BIN_PATH="/usr/local/bin/marzforwarder"
 NGINX_SITES_DIR="/etc/nginx/sites-available"
 NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
 FORWARD_PHP_URL="https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php"
@@ -12,6 +13,10 @@ function install {
 
   echo "📁 Creating base directory..."
   mkdir -p "$INSTALL_DIR/instances"
+
+  echo "🔗 Setting up CLI shortcut..."
+  cp "$0" "$BIN_PATH"
+  chmod +x "$BIN_PATH"
 
   echo "🔧 Enabling NGINX to start on boot..."
   systemctl enable nginx
@@ -47,13 +52,31 @@ EOF
 
   curl -sSL "$FORWARD_PHP_URL" -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
-  echo "🔐 Getting SSL certificate..."
-  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN" || {
+  echo "🔐 Attempting to generate SSL certificate..."
+
+  # Stop nginx if running
+  NGINX_WAS_ACTIVE=false
+  if systemctl is-active --quiet nginx; then
+    echo "⏹ Stopping NGINX temporarily for Certbot..."
+    systemctl stop nginx
+    NGINX_WAS_ACTIVE=true
+  fi
+
+  certbot certonly --standalone -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAIN"
+  CERTBOT_EXIT=$?
+
+  # Restart nginx if it was active before
+  if [ "$NGINX_WAS_ACTIVE" = true ]; then
+    echo "🚀 Restarting NGINX..."
+    systemctl start nginx
+  fi
+
+  if [ "$CERTBOT_EXIT" -ne 0 ]; then
     echo "❌ SSL generation failed."
     return 1
-  }
+  fi
 
-  echo "⚙️  Starting local PHP server..."
+  echo "⚙️ Starting local PHP server..."
   cat > "$INSTALL_DIR/instances/$DOMAIN/run.sh" <<EOF
 #!/bin/bash
 cd "$INSTALL_DIR/instances/$DOMAIN"
@@ -61,7 +84,6 @@ php -S 127.0.0.1:$LOCAL_PORT forward.php
 EOF
   chmod +x "$INSTALL_DIR/instances/$DOMAIN/run.sh"
 
-  # systemd service
   SERVICE_FILE="/etc/systemd/system/marzforwarder-$DOMAIN.service"
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -138,7 +160,20 @@ function uninstall {
     remove "$DOMAIN"
   done
   rm -rf "$INSTALL_DIR"
+  rm -f "$BIN_PATH"
   echo "✅ Uninstalled all."
+}
+
+function help_menu {
+  echo "🛠 Available marzforwarder commands:"
+  echo ""
+  echo "  install             🔧 Install all dependencies and setup the tool"
+  echo "  add                 ➕ Add a new domain forwarder"
+  echo "  list                📋 List all configured forwarders"
+  echo "  remove <domain>     ❌ Remove a forwarder"
+  echo "  uninstall           🧨 Fully uninstall marzforwarder and clean all files"
+  echo ""
+  echo "ℹ️  Example: marzforwarder add"
 }
 
 case "$1" in
@@ -147,7 +182,9 @@ case "$1" in
   list) list ;;
   remove) remove "$2" ;;
   uninstall) uninstall ;;
+  help | -h | --help | "") help_menu ;;
   *)
-    echo "🛠 Usage: marzforwarder {install|add|list|remove|uninstall}"
+    echo "❌ Unknown command: '$1'"
+    help_menu
     ;;
 esac
