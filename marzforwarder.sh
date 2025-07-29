@@ -5,8 +5,8 @@ BIN_PATH="/usr/local/bin/marzforwarder"
 RENEW_SERVICE_PATH="/etc/systemd/system/marzforwarder-renew.service"
 RENEW_TIMER_PATH="/etc/systemd/system/marzforwarder-renew.timer"
 
-# Get the directory where the script is located after curl download
-SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# Temporary directory for downloaded files
+TMP_DIR="/tmp/marzforwarder_install_$$"
 
 function cleanup {
   echo "🧹 Cleaning up previous installations..."
@@ -27,15 +27,24 @@ function install {
   echo "📁 Creating base directory..."
   sudo mkdir -p "$INSTALL_DIR/instances"
 
+  echo "⬇️ Downloading necessary files..."
+  mkdir -p "$TMP_DIR"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$TMP_DIR/forward.php"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service -o "$TMP_DIR/marzforwarder-renew.service"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer -o "$TMP_DIR/marzforwarder-renew.timer"
+
   echo "🔗 Setting up CLI shortcut..."
-  sudo cp "$SCRIPT_DIR/marzforwarder.sh" "$BIN_PATH"
+  sudo cp "$TMP_DIR/marzforwarder.sh" "$BIN_PATH"
   sudo chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  sudo cp "$SCRIPT_DIR/marzforwarder-renew.service" "$RENEW_SERVICE_PATH"
-  sudo cp "$SCRIPT_DIR/marzforwarder-renew.timer" "$RENEW_TIMER_PATH"
+  sudo cp "$TMP_DIR/marzforwarder-renew.service" "$RENEW_SERVICE_PATH"
+  sudo cp "$TMP_DIR/marzforwarder-renew.timer" "$RENEW_TIMER_PATH"
   sudo systemctl daemon-reload
   sudo systemctl enable --now marzforwarder-renew.timer
+
+  echo "🗑 Cleaning up temporary files..."
+  rm -rf "$TMP_DIR"
 
   echo "✅ Installation completed."
 }
@@ -62,7 +71,8 @@ function add {
 }
 EOF
 
-  sudo cp "$SCRIPT_DIR/forward.php" "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  # Download forward.php directly to the instance directory
+  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   # Create Nginx configuration
   sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
@@ -172,7 +182,12 @@ function status {
     for dir in "$INSTALL_DIR/instances/"*; do
       DOMAIN=$(basename "$dir")
       echo "  - $DOMAIN"
-      sudo systemctl status nginx | grep "Active: active (running)"
+      # Check if Nginx config exists and is enabled for this domain
+      if [ -f "/etc/nginx/sites-enabled/$DOMAIN" ]; then
+        echo "    Status: Enabled (Nginx)"
+      else
+        echo "    Status: Disabled or Not Configured (Nginx)"
+      fi
     done
   else
     echo "  No forwarders configured."
@@ -210,7 +225,7 @@ case "$1" in
     echo "ℹ️  Example: marzforwarder add"
     ;;
   *)
-    echo "❌ Unknown command: \'$1\'"
+    echo "❌ Unknown command: \'$1\''"
     echo "Type \'marzforwarder help\' to see available commands."
     ;;
 esac
