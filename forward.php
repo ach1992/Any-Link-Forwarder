@@ -22,4 +22,21 @@ $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $targetUrl = "https://{$targetDomain}:{$targetPort}{$requestUri}";
 
 $ch = curl_init($targetUrl);
-curl
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HEADER => false,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_FOLLOWLOCATION => true,
+]);
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+curl_close($ch);
+
+if ($contentType) {
+    header("Content-Type: $contentType");
+}
+http_response_code($httpCode);
+echo $response;
