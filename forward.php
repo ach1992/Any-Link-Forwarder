@@ -1,62 +1,63 @@
 <?php
-error_reporting(0);
-ini_set('display_errors', 0);
 
-// بارگذاری تنظیمات
-$config_path = __DIR__ . '/config.json';
-if (!file_exists($config_path)) {
-    http_response_code(500);
-    header("Content-Type: text/plain");
-    echo "Config file not found.";
-    exit;
+if (empty($_SERVER['HTTP_USER_AGENT'])) {
+    http_response_code(403);
+    exit("Access Denied");
 }
 
-$config = json_decode(file_get_contents($config_path), true);
-if (!$config || !isset($config['target_domain'], $config['target_port'])) {
+$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+$isTextHTML = str_contains($accept, 'text/html') || str_contains($accept, '*/*');
+
+$instancePath = __DIR__;
+$configPath = $instancePath . '/config.json';
+
+if (!file_exists($configPath)) {
     http_response_code(500);
-    header("Content-Type: text/plain");
-    echo "Invalid config format.";
-    exit;
+    exit("Config file not found");
 }
 
-// ساخت آدرس مقصد
-$target_url = "https://{$config['target_domain']}:{$config['target_port']}{$_SERVER['REQUEST_URI']}";
+$config = json_decode(file_get_contents($configPath), true);
+$targetDomain = $config['target_domain'];
+$targetPort = $config['target_port'];
 
-// CURL برای فوروارد کامل
-$ch = curl_init($target_url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HEADER => true, // دریافت body + header
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_SSL_VERIFYPEER => false,
-]);
+$path = $_SERVER['REQUEST_URI'] ?? '';
+$proxyPath = $path; 
 
-$response = curl_exec($ch);
-if ($response === false) {
+$portSegment = ($targetPort == 443) ? '' : ':' . $targetPort;
+$URL = "https://{$targetDomain}{$portSegment}{$proxyPath}";
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $URL);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HEADER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT']);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+curl_setopt($ch, CURLOPT_HTTPHEADER, $isTextHTML ? ['Accept: text/html'] : []);
+
+$data = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+if (curl_errno($ch)) {
     http_response_code(502);
-    header("Content-Type: text/plain");
-    echo "Error contacting backend: " . curl_error($ch);
-    curl_close($ch);
-    exit;
+    exit('cURL Error: ' . curl_error($ch));
 }
 
-// جدا کردن هدر و بادی
-$header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$header = substr($response, 0, $header_size);
-$body = substr($response, $header_size);
-$httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// ست کردن HTTP status
-http_response_code($httpcode);
+$header_text = substr($data, 0, strpos($data, "\r\n\r\n"));
+$body = substr($data, strlen($header_text) + 4);
 
-// ارسال همه هدرها به جز هدرهای ممنوع (مثل Transfer-Encoding)
-foreach (explode("\r\n", $header) as $line) {
-    if (stripos($line, 'HTTP/') === 0 || empty($line)) continue;
-    if (stripos($line, 'Transfer-Encoding:') === 0) continue;
-    if (stripos($line, 'Content-Encoding:') === 0) continue; // gzip issues
-    header($line, false);
+foreach (explode("\r\n", $header_text) as $i => $line) {
+    if ($i === 0) continue;
+    list($key, $value) = explode(': ', $line, 2);
+    $key = strtolower($key);
+    if (in_array($key, ['subscription-userinfo', 'profile-update-interval'])) {
+        header(ucwords($key, '-') . ': ' . trim($value));
+    }
 }
 
-// ارسال محتوای کامل
+header('Content-Type: text/plain');
+
+http_response_code($code);
 echo $body;
