@@ -55,6 +55,5 @@ foreach (explode("\r\n", $header_text) as $i => $line) {
 }
 
 http_response_code($code);
-header('Connection: keep-alive');
 header('Content-Length: ' . strlen($body));
 echo $body;
