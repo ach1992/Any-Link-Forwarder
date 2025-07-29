@@ -5,9 +5,6 @@ BIN_PATH="/usr/local/bin/marzforwarder"
 RENEW_SERVICE_PATH="/etc/systemd/system/marzforwarder-renew.service"
 RENEW_TIMER_PATH="/etc/systemd/system/marzforwarder-renew.timer"
 
-# Temporary directory for downloaded files
-TMP_DIR="/tmp/marzforwarder_install_$$"
-
 function cleanup {
   echo "🧹 Cleaning up previous installations..."
   sudo rm -rf "$INSTALL_DIR"
@@ -28,13 +25,15 @@ function install {
   sudo mkdir -p "$INSTALL_DIR/instances"
 
   echo "⬇️ Downloading necessary files..."
-  mkdir -p "$TMP_DIR"
+  # Create a temporary directory for downloaded files
+  TMP_DIR="$(mktemp -d)"
   curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$TMP_DIR/forward.php"
   curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service -o "$TMP_DIR/marzforwarder-renew.service"
   curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer -o "$TMP_DIR/marzforwarder-renew.timer"
 
   echo "🔗 Setting up CLI shortcut..."
-  sudo cp "$TMP_DIR/marzforwarder.sh" "$BIN_PATH"
+  # When executed via curl | bash, the script is read from stdin. We need to download it again.
+  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh -o "$BIN_PATH"
   sudo chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
@@ -225,7 +224,7 @@ case "$1" in
     echo "ℹ️  Example: marzforwarder add"
     ;;
   *)
-    echo "❌ Unknown command: \'$1\''"
+    echo "❌ Unknown command: \'$1\'"
     echo "Type \'marzforwarder help\' to see available commands."
     ;;
 esac
