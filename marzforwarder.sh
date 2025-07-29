@@ -78,7 +78,7 @@ function create_service {
 cd "$INSTALL_DIR/instances/$DOMAIN"
 php -S 127.0.0.1:$LOCAL_PORT forward.php &
 while ! nc -z 127.0.0.1 $LOCAL_PORT; do sleep 0.5; done
-exec socat openssl-listen:$LISTEN_PORT,reuseaddr,fork,verify=1,cert=/etc/letsencrypt/live/$DOMAIN/fullchain.pem,key=/etc/letsencrypt/live/$DOMAIN/privkey.pem,cafile=/etc/ssl/certs/ca-certificates.crt TCP:127.0.0.1:$LOCAL_PORT
+exec socat openssl-listen:$LISTEN_PORT,reuseaddr,fork,verify=0,cert=/etc/letsencrypt/live/$DOMAIN/fullchain.pem,key=/etc/letsencrypt/live/$DOMAIN/privkey.pem,cafile=/etc/ssl/certs/ca-certificates.crt TCP:127.0.0.1:$LOCAL_PORT
 
 EOF
 
