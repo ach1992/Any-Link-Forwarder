@@ -6,7 +6,7 @@
 
 # Any Link Forwarder (Nginx + PHP + SSL)
 
-A lightweight reverse proxy for any link forwarding through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
+A lightweight reverse proxy for link forwarding through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
 
 ## 🔧 One-liner installation
 
