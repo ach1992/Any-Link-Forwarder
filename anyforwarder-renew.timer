@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily SSL renewal timer for MarzForwarder
+Description=Daily SSL renewal timer for AnyForwarder
 
 [Timer]
 OnCalendar=daily
