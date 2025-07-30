@@ -1,10 +1,10 @@
-# Marzban Subscription Link Forwarder (PHP + SSL)
+# Marzban Subscription Link Forwarder (Nginx + PHP + SSL)
 
-A lightweight reverse proxy for forwarding Marzban panel subscriptions through your custom domain with HTTPS — using only PHP, certbot, and socat.
+A lightweight reverse proxy for forwarding Marzban panel subscriptions through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
 
 ## 🔧 One-liner installation
 
-```
+```bash
 bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh) install
 ```
 
@@ -14,7 +14,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 
 After installing the script, you can manage the forwarder using the global command:
 
-```
+```bash
 marzforwarder
 ```
 
@@ -22,13 +22,13 @@ marzforwarder
 
 | Command | Description |
 |---------|-------------|
-| `marzforwarder add <domain> <panel> <port>` | Adds a new forwarder. Issues SSL and sets up a systemd service for the domain. |
+| `marzforwarder add` | Adds a new forwarder. Prompts for domain, target panel, and listen port. Issues SSL certificate and sets up Nginx configuration. **Requires `sudo` to run.** |
 | `marzforwarder list` | Lists all currently active domains (instances) managed by MarzForwarder. |
-| `marzforwarder remove <domain>` | Removes the forwarder for the specified domain, including its certificate and systemd service. |
-| `marzforwarder instance-start <domain>` | Manually restarts the PHP server for a domain (in case you want to test or debug). |
-| `marzforwarder renew-cert` | Stops all forwarders, renews all SSL certificates via Certbot, and restarts them. |
-| `marzforwarder uninstall` | Completely removes all domains, certificates, the CLI command, and auto-renew systemd services. |
+| `marzforwarder remove <domain>` | Removes the forwarder for the specified domain, including its Nginx configuration, certificate, and instance files. |
+| `marzforwarder renew-cert` | Manually renews all SSL certificates via Certbot and reloads Nginx. |
+| `marzforwarder uninstall` | Completely removes all domains, certificates, the CLI command, and auto-renew systemd services. Does NOT remove Nginx, PHP, or Certbot packages. |
 | `marzforwarder install` | 📌 *(Used only during initial setup)* Installs dependencies, sets up auto-renew, and prompts you to add your first domain. |
+| `marzforwarder status` | Displays the status of Nginx, PHP-FPM, Certbot renewal timer, and active forwarders. |
 
 ## ⚙️ Requirements
 
@@ -50,11 +50,13 @@ To use this Marzban subscription forwarder, ensure your system meets the followi
 
 ### 📦 Required Packages (automatically installed)
 
+- `nginx`
 - `php` (>= 7.4)
+- `php-fpm`
 - `php-curl`
 - `curl`
-- `socat`
 - `certbot` (Let's Encrypt client)
+- `python3-certbot-nginx`
 - `unzip` (optional, for file management)
 
 ### 🌐 Networking Requirements
@@ -63,17 +65,16 @@ To use this Marzban subscription forwarder, ensure your system meets the followi
   - Point to the VPS IP (via A record)
   - Be managed via Cloudflare or other DNS (✅ works with orange-cloud OFF)
 
-- Ports **80** and **443** must be:
+- Ports **80** (for Certbot HTTP-01 challenge) and your chosen **listen port** (e.g., 443, 8443) must be:
   - Open and accessible from the public internet
-  - Not used by nginx, apache, or any other web service
+  - Not used by any other web service on the chosen listen port
 
 ### 🔐 SSL/TLS
 
-- The script uses Let's Encrypt (via `certbot`) to issue valid HTTPS certificates
-- Certificates auto-renew via `cron` every 60 days
+- The script uses Let's Encrypt (via `certbot`) to issue valid HTTPS certificates.
+- Certificates auto-renew via `systemd timer` every 60 days.
 
 ### 📦 Storage & Resources
 
-- Minimum: 100MB free disk space
+- Minimum: 1000MB free disk space
 - Minimum: 512MB RAM (recommended)
-
