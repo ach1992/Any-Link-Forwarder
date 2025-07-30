@@ -1,9 +1,9 @@
 #!/bin/bash
 
-INSTALL_DIR="/var/www/marzban-forward"
-BIN_PATH="/usr/local/bin/marzforwarder"
-RENEW_SERVICE_PATH="/etc/systemd/system/marzforwarder-renew.service"
-RENEW_TIMER_PATH="/etc/systemd/system/marzforwarder-renew.timer"
+INSTALL_DIR="/var/www/any-forward"
+BIN_PATH="/usr/local/bin/anyforwarder"
+RENEW_SERVICE_PATH="/etc/systemd/system/anyforwarder-renew.service"
+RENEW_TIMER_PATH="/etc/systemd/system/anyforwarder-renew.timer"
 
 function cleanup {
   echo "🧹 Cleaning up previous installations..."
@@ -76,20 +76,20 @@ function install {
   echo "⬇️ Downloading necessary files..."
   # Create a temporary directory for downloaded files
   TMP_DIR="$(mktemp -d)"
-  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$TMP_DIR/forward.php"
-  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.service -o "$TMP_DIR/marzforwarder-renew.service"
-  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder-renew.timer -o "$TMP_DIR/marzforwarder-renew.timer"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/forward.php -o "$TMP_DIR/forward.php"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/anyforwarder-renew.service -o "$TMP_DIR/anyforwarder-renew.service"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/anyforwarder-renew.timer -o "$TMP_DIR/anyforwarder-renew.timer"
 
   echo "🔗 Setting up CLI shortcut..."
   # When executed via curl | bash, the script is read from stdin. We need to download it again.
-  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh -o "$BIN_PATH"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/anyforwarder.sh -o "$BIN_PATH"
   sudo chmod +x "$BIN_PATH"
 
   echo "📅 Setting up automatic SSL renewal..."
-  sudo cp "$TMP_DIR/marzforwarder-renew.service" "$RENEW_SERVICE_PATH"
-  sudo cp "$TMP_DIR/marzforwarder-renew.timer" "$RENEW_TIMER_PATH"
+  sudo cp "$TMP_DIR/anyforwarder-renew.service" "$RENEW_SERVICE_PATH"
+  sudo cp "$TMP_DIR/anyforwarder-renew.timer" "$RENEW_TIMER_PATH"
   sudo systemctl daemon-reload
-  sudo systemctl enable --now marzforwarder-renew.timer
+  sudo systemctl enable --now anyforwarder-renew.timer
 
   echo "🗑 Cleaning up temporary files..."
   rm -rf "$TMP_DIR"
@@ -104,7 +104,7 @@ function install {
 
 function add {
   if [ "$(id -u)" -ne 0 ]; then
-    echo "❌ This command requires root privileges. Please run with sudo: sudo marzforwarder add"
+    echo "❌ This command requires root privileges. Please run with sudo: sudo anyforwarder add"
     return 1
   fi
 
@@ -137,7 +137,7 @@ function add {
 EOF
 
   # Download forward.php directly to the instance directory
-  curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/forward.php -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
+  curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/forward.php -o "$INSTALL_DIR/instances/$DOMAIN/forward.php"
 
   # Create Nginx configuration for webroot challenge
   sudo cat > "/etc/nginx/sites-available/$DOMAIN" <<EOF
@@ -229,7 +229,7 @@ function list {
 function remove {
   DOMAIN=$1
   if [ -z "$DOMAIN" ]; then
-    echo "❌ Usage: marzforwarder remove <domain>"
+    echo "❌ Usage: anyforwarder remove <domain>"
     exit 1
   fi
 
@@ -281,7 +281,7 @@ function status {
   sudo systemctl status php*-fpm | grep Active
   echo ""
   echo "Certbot Renewal Timer Status:"
-  sudo systemctl status marzforwarder-renew.timer | grep Active
+  sudo systemctl status anyforwarder-renew.timer | grep Active
   echo ""
   echo "Active Forwarders:"
   if [ -d "$INSTALL_DIR/instances" ]; then
@@ -317,21 +317,21 @@ case "$1" in
   status) status ;;
   renew-cert) renew-cert ;;
   "" | help | -h | --help)
-    echo "🛠 Available marzforwarder commands:"
+    echo "🛠 Available anyforwarder commands:"
     echo ""
     echo "  cleanup             🧹 Clean up previous installations"
     echo "  install             🔧 Install all dependencies and setup the tool"
     echo "  add                 ➕ Add a new domain forwarder"
     echo "  list                📋 List all configured forwarders"
     echo "  remove <domain>     ❌ Remove a forwarder"
-    echo "  uninstall           🧨 Fully uninstall marzforwarder and clean all files"
+    echo "  uninstall           🧨 Fully uninstall anyforwarder and clean all files"
     echo "  status              📊 Show status of Marzban Forwarder services"
     echo "  renew-cert          🔁 Manually renew SSL certificates for all domains"
     echo ""
-    echo "ℹ️  Example: marzforwarder add"
+    echo "ℹ️  Example: anyforwarder add"
     ;;
   *)
     echo "❌ Unknown command: \'$1\'"
-    echo "Type \'marzforwarder help\' to see available commands."
+    echo "Type \'anyforwarder help\' to see available commands."
     ;;
 esac
