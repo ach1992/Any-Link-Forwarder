@@ -59,15 +59,15 @@ function add {
     echo "❌ This command requires root privileges. Please run with sudo: sudo marzforwarder add"
     return 1
   fi
-  read -p "🌐 Enter domain to listen (e.g., sub.domain.com): " DOMAIN
+  read -p "🌐 Enter domain to listen (e.g., forward.domain.com): " DOMAIN
   if [ -d "$INSTALL_DIR/instances/$DOMAIN" ]; then
     echo "⚠️ Forwarder for $DOMAIN already exists."
     return 1
   fi
-
-  read -p "📍 Enter target panel domain (e.g., panel.domain.ir): " PANEL
-  read -p "🚪 Enter target panel port (e.g., 443): " PORT
+	
   read -p "🔊 Enter local listen port (e.g., 443, 8443, 2096...): " LISTEN_PORT
+  read -p "📍 Enter target panel domain (e.g., panel.domain.com): " PANEL
+  read -p "🚪 Enter target panel port (e.g., 443, 8443, 2096...): " PORT
 
   echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT on port $LISTEN_PORT"
   sudo mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
