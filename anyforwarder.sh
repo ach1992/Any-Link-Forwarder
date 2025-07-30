@@ -119,10 +119,10 @@ function add {
   validate_port "🔊 Enter local listen port (e.g., 443, 8443, 2096...): "
   LISTEN_PORT=$REPLY
 
-  validate_domain "📍 Enter target panel domain (e.g., panel.domain.com): "
+  validate_domain "📍 Enter target domain (e.g., panel.domain.com): "
   PANEL=$REPLY
 
-  validate_port "🚪 Enter target panel port (e.g., 443, 8443, 2096...): "
+  validate_port "🚪 Enter target port (e.g., 443, 8443, 2096...): "
   PORT=$REPLY
 
   echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT on port $LISTEN_PORT"
