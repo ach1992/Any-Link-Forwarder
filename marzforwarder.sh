@@ -16,6 +16,55 @@ function cleanup {
   echo "✅ Cleanup completed."
 }
 
+# Function to validate yes/no input
+function validate_yes_no {
+  local input
+  while true; do
+    read -p "$1" -n 1 -r input
+    echo
+    if [[ $input =~ ^[YyNn]$ ]]; then
+      REPLY=$input
+      return 0
+    else
+      echo "Invalid input. Please enter 'y' or 'n'."
+    fi
+  done
+}
+
+# Function to validate domain input
+function validate_domain {
+  local input
+  while true; do
+    read -p "$1" input
+    if [[ -z "$input" ]]; then
+      echo "Domain cannot be empty. Please try again."
+    elif [[ ! "$input" =~ \. ]]; then
+      echo "Invalid domain format. Please include at least one dot (e.g., sub.domain.com)."
+    else
+      REPLY=$input
+      return 0
+    fi
+  done
+}
+
+# Function to validate port input
+function validate_port {
+  local input
+  while true; do
+    read -p "$1" input
+    if [[ -z "$input" ]]; then
+      echo "Port cannot be empty. Please try again."
+    elif ! [[ "$input" =~ ^[0-9]+$ ]]; then
+      echo "Invalid port. Please enter a number."
+    elif (( input < 1 || input > 65535 )); then
+      echo "Port must be between 1 and 65535. Please try again."
+    else
+      REPLY=$input
+      return 0
+    fi
+  done
+}
+
 function install {
   echo "📦 Installing dependencies..."
   sudo apt update
@@ -47,8 +96,7 @@ function install {
 
   echo "✅ Installation completed."
 
-  read -p "Would you like to add your first forwarder now? (y/n): " -n 1 -r
-  echo
+  validate_yes_no "Would you like to add your first forwarder now? (y/n): "
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     add
   fi
@@ -59,15 +107,23 @@ function add {
     echo "❌ This command requires root privileges. Please run with sudo: sudo marzforwarder add"
     return 1
   fi
-  read -p "🌐 Enter domain to listen (e.g., forward.domain.com): " DOMAIN
+
+  validate_domain "🌐 Enter domain to listen (e.g., forward.domain.com): "
+  DOMAIN=$REPLY
+
   if [ -d "$INSTALL_DIR/instances/$DOMAIN" ]; then
     echo "⚠️ Forwarder for $DOMAIN already exists."
     return 1
   fi
-	
-  read -p "🔊 Enter local listen port (e.g., 443, 8443, 2096...): " LISTEN_PORT
-  read -p "📍 Enter target panel domain (e.g., panel.domain.com): " PANEL
-  read -p "🚪 Enter target panel port (e.g., 443, 8443, 2096...): " PORT
+
+  validate_port "🔊 Enter local listen port (e.g., 443, 8443, 2096...): "
+  LISTEN_PORT=$REPLY
+
+  validate_domain "📍 Enter target panel domain (e.g., panel.domain.com): "
+  PANEL=$REPLY
+
+  validate_port "🚪 Enter target panel port (e.g., 443, 8443, 2096...): "
+  PORT=$REPLY
 
   echo "➕ Adding new forwarder for $DOMAIN -> $PANEL:$PORT on port $LISTEN_PORT"
   sudo mkdir -p "$INSTALL_DIR/instances/$DOMAIN"
