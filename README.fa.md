@@ -12,7 +12,7 @@ English
 ## 🔧 نصب با یک خط فرمان
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh) install
+bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/anyforwarder.sh) install
 ```
 
 ---
@@ -22,20 +22,20 @@ bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 پس از نصب اسکریپت، می‌توانید فورواردر را با استفاده از دستور زیر مدیریت کنید:
 
 ```bash
-marzforwarder
+anyforwarder
 ```
 
 ## 🧩 راهنمای دستورات CLI
 
 | دستور | توضیحات |
 |---------|-------------|
-| `marzforwarder add` | یک فورواردر جدید اضافه می‌کند. برای دامنه، پنل هدف و پورت شنود سؤال می‌پرسد. گواهی SSL صادر می‌کند و پیکربندی Nginx را تنظیم می‌کند. **نیاز به `sudo` برای اجرا دارد.** |
-| `marzforwarder list` | تمام دامنه‌های فعال فعلی (نمونه‌ها) مدیریت‌شده توسط MarzForwarder را فهرست می‌کند. |
-| `marzforwarder remove <domain>` | فورواردر برای دامنه مشخص‌شده را حذف می‌کند، شامل پیکربندی Nginx، گواهی و فایل‌های نمونه آن. |
-| `marzforwarder renew-cert` | تمام گواهی‌های SSL را به صورت دستی از طریق Certbot تمدید می‌کند و Nginx را مجدداً بارگذاری می‌کند. |
-| `marzforwarder uninstall` | تمام دامنه‌ها، گواهی‌ها، دستور CLI و خدمات تمدید خودکار systemd را به طور کامل حذف می‌کند. بسته‌های Nginx، PHP یا Certbot را حذف نمی‌کند. |
-| `marzforwarder install` | 📌 *(فقط در زمان تنظیم اولیه استفاده می‌شود)* وابستگی‌ها را نصب می‌کند، تمدید خودکار را تنظیم می‌کند و شما را برای اضافه کردن اولین دامنه راهنمایی می‌کند. |
-| `marzforwarder status` | وضعیت Nginx، PHP-FPM، تایمر تمدید Certbot و فورواردرهای فعال را نمایش می‌دهد. |
+| `anyforwarder add` | یک فورواردر جدید اضافه می‌کند. برای دامنه، پنل هدف و پورت شنود سؤال می‌پرسد. گواهی SSL صادر می‌کند و پیکربندی Nginx را تنظیم می‌کند. **نیاز به `sudo` برای اجرا دارد.** |
+| `anyforwarder list` | تمام دامنه‌های فعال فعلی (نمونه‌ها) مدیریت‌شده توسط MarzForwarder را فهرست می‌کند. |
+| `anyforwarder remove <domain>` | فورواردر برای دامنه مشخص‌شده را حذف می‌کند، شامل پیکربندی Nginx، گواهی و فایل‌های نمونه آن. |
+| `anyforwarder renew-cert` | تمام گواهی‌های SSL را به صورت دستی از طریق Certbot تمدید می‌کند و Nginx را مجدداً بارگذاری می‌کند. |
+| `anyforwarder uninstall` | تمام دامنه‌ها، گواهی‌ها، دستور CLI و خدمات تمدید خودکار systemd را به طور کامل حذف می‌کند. بسته‌های Nginx، PHP یا Certbot را حذف نمی‌کند. |
+| `anyforwarder install` | 📌 *(فقط در زمان تنظیم اولیه استفاده می‌شود)* وابستگی‌ها را نصب می‌کند، تمدید خودکار را تنظیم می‌کند و شما را برای اضافه کردن اولین دامنه راهنمایی می‌کند. |
+| `anyforwarder status` | وضعیت Nginx، PHP-FPM، تایمر تمدید Certbot و فورواردرهای فعال را نمایش می‌دهد. |
 
 ## ⚙️ الزامات
 
