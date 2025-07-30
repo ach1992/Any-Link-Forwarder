@@ -1,10 +1,10 @@
-# Marzban Subscription Link Forwarder (Nginx + PHP + SSL)
-
 <p align="center">
  <a href="./README.fa.md">
  فارسی
  </a>
 </p>
+
+# Marzban Subscription Link Forwarder (Nginx + PHP + SSL)
 
 A lightweight reverse proxy for forwarding Marzban panel subscriptions through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
 
