@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew SSL Certificates for AnyForwarder
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/anyforwarder renew-cert
