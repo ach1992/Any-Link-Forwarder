@@ -1,6 +1,11 @@
-# فورواردر لینک اشتراک مرزبان (Nginx + PHP + SSL)
 
-[English](README.md)
+<p align="center">
+ <a href="./README.md">
+English
+ </a>
+</p>
+
+# فورواردر لینک اشتراک مرزبان (Nginx + PHP + SSL)
 
 یک پروکسی معکوس سبک برای فوروارد کردن لینک اشتراک پنل مرزبان از طریق دامنه سفارشی شما با HTTPS — با استفاده از Nginx، PHP و Certbot.
 
