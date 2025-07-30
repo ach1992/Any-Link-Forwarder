@@ -11,7 +11,7 @@ A lightweight reverse proxy for forwarding Marzban panel subscriptions through y
 ## 🔧 One-liner installation
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder/main/marzforwarder.sh) install
+bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Any-Link-Forwarder/main/anyforwarder.sh) install
 ```
 
 ---
@@ -21,20 +21,20 @@ bash <(curl -sSL https://raw.githubusercontent.com/ach1992/Marzban-Sub-Forwarder
 After installing the script, you can manage the forwarder using the global command:
 
 ```bash
-marzforwarder
+anyforwarder
 ```
 
 ## 🧩 CLI Command Reference
 
 | Command | Description |
 |---------|-------------|
-| `marzforwarder add` | Adds a new forwarder. Prompts for domain, target panel, and listen port. Issues SSL certificate and sets up Nginx configuration. **Requires `sudo` to run.** |
-| `marzforwarder list` | Lists all currently active domains (instances) managed by MarzForwarder. |
-| `marzforwarder remove <domain>` | Removes the forwarder for the specified domain, including its Nginx configuration, certificate, and instance files. |
-| `marzforwarder renew-cert` | Manually renews all SSL certificates via Certbot and reloads Nginx. |
-| `marzforwarder uninstall` | Completely removes all domains, certificates, the CLI command, and auto-renew systemd services. Does NOT remove Nginx, PHP, or Certbot packages. |
-| `marzforwarder install` | 📌 *(Used only during initial setup)* Installs dependencies, sets up auto-renew, and prompts you to add your first domain. |
-| `marzforwarder status` | Displays the status of Nginx, PHP-FPM, Certbot renewal timer, and active forwarders. |
+| `anyforwarder add` | Adds a new forwarder. Prompts for domain, target panel, and listen port. Issues SSL certificate and sets up Nginx configuration. **Requires `sudo` to run.** |
+| `anyforwarder list` | Lists all currently active domains (instances) managed by MarzForwarder. |
+| `anyforwarder remove <domain>` | Removes the forwarder for the specified domain, including its Nginx configuration, certificate, and instance files. |
+| `anyforwarder renew-cert` | Manually renews all SSL certificates via Certbot and reloads Nginx. |
+| `anyforwarder uninstall` | Completely removes all domains, certificates, the CLI command, and auto-renew systemd services. Does NOT remove Nginx, PHP, or Certbot packages. |
+| `anyforwarder install` | 📌 *(Used only during initial setup)* Installs dependencies, sets up auto-renew, and prompts you to add your first domain. |
+| `anyforwarder status` | Displays the status of Nginx, PHP-FPM, Certbot renewal timer, and active forwarders. |
 
 ## ⚙️ Requirements
 
