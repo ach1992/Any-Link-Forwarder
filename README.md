@@ -4,9 +4,9 @@
  </a>
 </p>
 
-# Marzban Subscription Link Forwarder (Nginx + PHP + SSL)
+# Any Link Forwarder (Nginx + PHP + SSL)
 
-A lightweight reverse proxy for forwarding Marzban panel subscriptions through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
+A lightweight reverse proxy for any link forwarding through your custom domain with HTTPS — using Nginx, PHP, and Certbot.
 
 ## 🔧 One-liner installation
 
@@ -38,7 +38,7 @@ anyforwarder
 
 ## ⚙️ Requirements
 
-To use this Marzban subscription forwarder, ensure your system meets the following requirements:
+To use this Link forwarder, ensure your system meets the following requirements:
 
 ### ✅ System Compatibility
 
